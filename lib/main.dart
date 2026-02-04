@@ -7,7 +7,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. .env 파일을 로드합니다.
-  await dotenv.load(fileName: ".env");
+
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Env load failed: $e");
+  }
 
   // 2. dotenv.env['키이름']을 사용하여 수파베이스를 초기화합니다.
   await Supabase.initialize(
@@ -27,6 +32,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Wish Drop',
       theme: ThemeData(useMaterial3: true),
       home: const LoginPage(), // 로그인 페이지 연결

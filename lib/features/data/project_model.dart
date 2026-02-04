@@ -32,7 +32,6 @@ class ProjectModel {
   // 달성률 계산 (0.0 ~ 1.0)
   double get progress {
     if (targetAmount == 0) return 0.0;
-    double value = currentAmount / targetAmount;
-    return value > 1.0 ? 1.0 : value;
+    return (currentAmount / targetAmount).clamp(0.0, 1.0);
   }
 }
