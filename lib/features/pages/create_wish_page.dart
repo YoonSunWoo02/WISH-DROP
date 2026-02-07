@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
+import 'package:wish_drop/features/pages/home_page.dart';
 
 class CreateWishPage extends StatefulWidget {
   const CreateWishPage({super.key});
@@ -19,24 +21,23 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
   // 📝 Step 1: 기본 정보
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
   File? _imageFile;
 
   // 💰 Step 2: 목표 설정
   final TextEditingController _amountController = TextEditingController();
-  DateTime _endDate = DateTime.now().add(const Duration(days: 7));
+  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   final currencyFormat = NumberFormat("#,###");
 
   // ⚙️ Step 3: 설정
   bool _allowAnonymous = true;
-  bool _allowCheering = false;
-  final TextEditingController _welcomeMessageController =
-      TextEditingController();
+  bool _allowCheering = true;
 
   @override
   void dispose() {
     _titleController.dispose();
+    _descController.dispose();
     _amountController.dispose();
-    _welcomeMessageController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -65,7 +66,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
               onPrimary: Colors.white,
               onSurface: AppTheme.textHeading,
             ),
-            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
+            dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -78,14 +79,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
   // --- 🚀 Supabase 저장 로직 ---
   Future<void> _submitWish() async {
-    if (_titleController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("선물 이름을 입력해주세요.")));
-      _pageController.jumpToPage(0);
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     try {
@@ -94,7 +87,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
       String? imageUrl;
 
-      // 1. 이미지 업로드 (이미지가 있다면)
+      // 1. 이미지 업로드
       if (_imageFile != null) {
         final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
         await Supabase.instance.client.storage
@@ -112,41 +105,127 @@ class _CreateWishPageState extends State<CreateWishPage> {
       // 2. 금액 파싱
       int targetAmount =
           int.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
+      if (targetAmount <= 0) targetAmount = 100000;
 
       // 3. DB Insert
       await Supabase.instance.client.from('projects').insert({
         'title': _titleController.text,
+        'description': _descController.text,
         'target_amount': targetAmount,
         'current_amount': 0,
         'end_date': _endDate.toIso8601String(),
         'thumbnail_url': imageUrl,
-        'creator_id': userId,
+        'user_id': userId,
         'allow_anonymous': _allowAnonymous,
-        'allow_cheering': _allowCheering,
-        'welcome_message': _allowCheering
-            ? _welcomeMessageController.text
-            : null,
+        'allow_messages': _allowCheering,
+        'status': 'active',
       });
 
       if (mounted) {
-        Navigator.pop(context); // 홈으로 이동
-        ScaffoldMessenger.of(
+        Navigator.pushAndRemoveUntil(
           context,
-        ).showSnackBar(const SnackBar(content: Text("위시가 생성되었습니다! 🎉")));
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("오류 발생: $e")));
+        _showErrorDialog("오류가 발생했습니다.\n$e");
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- 페이지 이동 ---
+  // ✨ [추가] 에러 팝업 (로그인 화면 스타일)
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 아이콘
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEF2F2), // Red-50
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 28,
+                ), // Error-Red
+              ),
+              const SizedBox(height: 20),
+              // 제목 & 내용
+              const Text(
+                "입력 확인",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textHeading,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textBody,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // 버튼
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    "확인",
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✨ [수정] 페이지 이동 (유효성 검사 추가)
   void _nextPage() {
+    // Step 1 유효성 검사
+    if (_currentStep == 0) {
+      if (_imageFile == null) {
+        _showErrorDialog("선물 이미지를 등록해주세요.");
+        return;
+      }
+      if (_titleController.text.trim().isEmpty) {
+        _showErrorDialog("선물 이름을 입력해주세요.");
+        return;
+      }
+    }
+
     _pageController.nextPage(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -162,18 +241,22 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
   @override
   Widget build(BuildContext context) {
+    double progress = (_currentStep + 1) / 3;
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Column(
           children: [
-            // 상단 네비게이션
+            // 1. 헤더
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                    color: AppTheme.textHeading,
                     onPressed: () {
                       if (_currentStep > 0) {
                         _prevPage();
@@ -181,115 +264,126 @@ class _CreateWishPageState extends State<CreateWishPage> {
                         Navigator.pop(context);
                       }
                     },
-                  ),
-                  const Expanded(
-                    child: Text(
-                      "위시 만들기",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textHeading,
-                      ),
+                    constraints: const BoxConstraints(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(8),
                     ),
                   ),
-                  const SizedBox(width: 48), // 밸런스용 빈 공간
+                  const Text(
+                    "위시 만들기",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHeading,
+                    ),
+                  ),
+                  const SizedBox(width: 34),
                 ],
               ),
             ),
 
-            // 프로그레스 바
+            // 2. 프로그레스 바
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "Step ${_currentStep + 1}",
+                        "Step ${_currentStep + 1} of 3",
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.bold,
                           color: AppTheme.primary,
                         ),
                       ),
                       Text(
-                        "${_currentStep + 1} / 3",
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        "${((_currentStep + 1) / 3 * 100).toInt()}%",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[400],
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 4,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: AnimatedFractionallySizedBox(
-                      duration: const Duration(milliseconds: 300),
-                      widthFactor: (_currentStep + 1) / 3,
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.grey[200],
+                      color: AppTheme.primary,
+                      minHeight: 4,
                     ),
                   ),
                 ],
               ),
             ),
 
-            // 메인 페이지 뷰
+            // 3. 메인 컨텐츠
             Expanded(
               child: PageView(
                 controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(), // 스와이프 방지
+                physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (idx) => setState(() => _currentStep = idx),
                 children: [_buildStep1(), _buildStep2(), _buildStep3()],
               ),
             ),
 
-            // 하단 버튼
+            // 4. 하단 버튼
             Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppTheme.borderColor)),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                border: const Border(
+                  top: BorderSide(color: AppTheme.borderColor),
+                ),
               ),
               child: SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: _isLoading
                       ? null
                       : (_currentStep == 2 ? _submitWish : _nextPage),
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    elevation: 4,
-                    shadowColor: AppTheme.primary.withOpacity(0.3),
+                    elevation: 0,
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               _currentStep == 2 ? "위시 프로젝트 만들기" : "다음 단계",
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (_currentStep != 2) const SizedBox(width: 8),
-                            if (_currentStep != 2)
-                              const Icon(Icons.arrow_forward, size: 20),
+                            if (_currentStep < 2) ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.arrow_forward, size: 18),
+                            ] else ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.rocket_launch, size: 18),
+                            ],
                           ],
                         ),
                 ),
@@ -304,96 +398,113 @@ class _CreateWishPageState extends State<CreateWishPage> {
   // ---------------- STEP 1 UI ----------------
   Widget _buildStep1() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "어떤 선물을\n받고 싶으신가요?",
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
-              height: 1.3,
               color: AppTheme.textHeading,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
             "선물에 대한 정보를 입력해주세요.",
             style: TextStyle(color: AppTheme.textBody, fontSize: 14),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          const Text(
-            "선물 이미지",
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textHeading,
-            ),
-          ),
-          const SizedBox(height: 12),
+          // 이미지 업로드
+          _sectionTitle("선물 이미지", isRequired: true),
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: _pickImage,
-            child: AspectRatio(
-              aspectRatio: 1.5,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.borderColor),
-                  image: _imageFile != null
-                      ? DecorationImage(
-                          image: FileImage(_imageFile!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: _imageFile == null
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.add_a_photo_outlined,
-                              color: AppTheme.primary,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            "대표 이미지 추가",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textHeading,
-                            ),
-                          ),
-                        ],
+            child: Container(
+              width: double.infinity,
+              height: 180,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey[300]!),
+                image: _imageFile != null
+                    ? DecorationImage(
+                        image: FileImage(_imageFile!),
+                        fit: BoxFit.cover,
                       )
                     : null,
               ),
+              child: _imageFile == null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.photo_camera,
+                            color: AppTheme.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "대표 이미지 추가",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textHeading,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "클릭하여 사진을 업로드하세요",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                      ],
+                    )
+                  : null,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          const Text(
-            "선물 이름",
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textHeading,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
+          // 선물 이름
+          _sectionTitle("선물 이름", isRequired: true),
+          const SizedBox(height: 10),
+          _customTextField(
             controller: _titleController,
-            decoration: const InputDecoration(hintText: "예) 마샬 스탠모어 III 스피커"),
+            hint: "예) 마샬 스탠모어 III 스피커",
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.info_outline, size: 13, color: AppTheme.primary),
+              const SizedBox(width: 4),
+              Text(
+                "명확한 이름을 쓰면 펀딩 성공 확률이 높아져요.",
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // 선물 설명
+          _sectionTitle("선물 설명", isRequired: false),
+          const SizedBox(height: 10),
+          _customTextField(
+            controller: _descController,
+            hint: "왜 이 선물을 받고 싶은지 이유를 적어주세요.",
+            maxLines: 4,
           ),
         ],
       ),
@@ -403,26 +514,27 @@ class _CreateWishPageState extends State<CreateWishPage> {
   // ---------------- STEP 2 UI ----------------
   Widget _buildStep2() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "목표를\n설정해주세요",
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
-              height: 1.3,
               color: AppTheme.textHeading,
+              height: 1.3,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
             "펀딩 금액과 종료 날짜를 입력해 주세요.",
             style: TextStyle(color: AppTheme.textBody, fontSize: 14),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
 
+          // 목표 금액
           const Text(
             "목표 금액",
             style: TextStyle(
@@ -431,12 +543,12 @@ class _CreateWishPageState extends State<CreateWishPage> {
               color: AppTheme.textHeading,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
             style: const TextStyle(
-              fontSize: 32,
+              fontSize: 28,
               fontWeight: FontWeight.bold,
               color: AppTheme.textHeading,
             ),
@@ -481,7 +593,9 @@ class _CreateWishPageState extends State<CreateWishPage> {
             ],
           ),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
+
+          // 종료 날짜
           const Text(
             "종료 날짜",
             style: TextStyle(
@@ -490,24 +604,28 @@ class _CreateWishPageState extends State<CreateWishPage> {
               color: AppTheme.textHeading,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           GestureDetector(
             onTap: _selectDate,
             child: Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppTheme.borderColor),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_today, color: AppTheme.primary),
-                  const SizedBox(width: 12),
+                  const Icon(
+                    Icons.calendar_today,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
                   Text(
                     DateFormat('yyyy년 MM월 dd일').format(_endDate),
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textHeading,
                     ),
@@ -516,7 +634,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
                   Text(
                     "D-${_endDate.difference(DateTime.now()).inDays}",
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.primary,
                     ),
@@ -527,7 +645,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppTheme.primary.withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
@@ -536,14 +654,14 @@ class _CreateWishPageState extends State<CreateWishPage> {
               children: [
                 const Icon(
                   Icons.info_outline,
-                  size: 16,
+                  size: 14,
                   color: AppTheme.primary,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   "오늘부터 ${_endDate.difference(DateTime.now()).inDays}일 동안 펀딩이 진행됩니다.",
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: AppTheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
@@ -552,6 +670,147 @@ class _CreateWishPageState extends State<CreateWishPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ---------------- STEP 3 UI ----------------
+  Widget _buildStep3() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "마지막 설정",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textHeading,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            "위시 프로젝트 운영을 위한 세부 옵션입니다.",
+            style: TextStyle(color: AppTheme.textBody, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+
+          // 1. 익명 후원 허용
+          _buildToggleOption(
+            icon: Icons.person_off,
+            title: "익명 후원 허용",
+            desc: "이름 노출 없이 조용히 참여하고 싶은 분들을 위해 허용합니다.",
+            value: _allowAnonymous,
+            onChanged: (val) => setState(() => _allowAnonymous = val),
+          ),
+          const SizedBox(height: 12),
+
+          // 2. 응원 메시지 허용
+          _buildToggleOption(
+            icon: Icons.chat_bubble,
+            title: "응원 메시지 허용",
+            desc: "후원자분들이 응원의 메세지를 남길 수 있게합니다.",
+            value: _allowCheering,
+            onChanged: (val) => setState(() => _allowCheering = val),
+          ),
+
+          const SizedBox(height: 24),
+          // 안내 박스
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEF2FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE0E7FF)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info, color: AppTheme.primary, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "위시 프로젝트가 생성된 이후에는 응원 메시지 및 익명성 옵션 변경이 제한될 수 있습니다.",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Helper Widgets ---
+  Widget _sectionTitle(String title, {required bool isRequired}) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textHeading,
+          ),
+        ),
+        if (isRequired) ...[
+          const SizedBox(width: 4),
+          const Text(
+            "(필수)",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.primary,
+            ),
+          ),
+        ] else ...[
+          const SizedBox(width: 4),
+          Text(
+            "(선택사항)",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[400],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _customTextField({
+    required TextEditingController controller,
+    required String hint,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      style: const TextStyle(fontSize: 14),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[200]!),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+        ),
       ),
     );
   }
@@ -567,7 +826,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
           });
         },
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(10),
@@ -576,140 +835,13 @@ class _CreateWishPageState extends State<CreateWishPage> {
             child: Text(
               label,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF475569),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // ---------------- STEP 3 UI ----------------
-  Widget _buildStep3() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "마지막 설정",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              height: 1.3,
-              color: AppTheme.textHeading,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "위시 프로젝트 운영을 위한 세부 옵션입니다.",
-            style: TextStyle(color: AppTheme.textBody, fontSize: 14),
-          ),
-          const SizedBox(height: 32),
-
-          // 1. 익명 후원 허용
-          _buildToggleOption(
-            icon: Icons.person_off,
-            title: "익명 후원 허용",
-            desc: "이름 노출 없이 조용히 참여하고 싶은 분들을 위해 허용합니다.",
-            value: _allowAnonymous,
-            onChanged: (val) => setState(() => _allowAnonymous = val),
-          ),
-          const SizedBox(height: 16),
-
-          // 2. 응원 메시지 허용 (애니메이션 적용)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.borderColor),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.chat_bubble, color: AppTheme.primary),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "응원 메시지 허용",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textHeading,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              "후원자들이 남기는 응원의 한마디를 공개합니다.",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textBody,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: _allowCheering,
-                        activeThumbColor: AppTheme.primary,
-                        onChanged: (val) =>
-                            setState(() => _allowCheering = val),
-                      ),
-                    ],
-                  ),
-                ),
-                // ✨ 스무스하게 열리는 입력창
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  child: _allowCheering
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Divider(height: 1),
-                              const SizedBox(height: 16),
-                              const Text(
-                                "웰컴 메시지 / 응원 가이드",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _welcomeMessageController,
-                                maxLines: 3,
-                                style: const TextStyle(fontSize: 14),
-                                decoration: const InputDecoration(
-                                  hintText:
-                                      "친구들에게 전할 한마디를 적어주세요. (예: 생일 축하 메시지 한 줄씩 부탁해!)",
-                                  fillColor: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -722,15 +854,15 @@ class _CreateWishPageState extends State<CreateWishPage> {
     required Function(bool) onChanged,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.borderColor),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppTheme.primary),
+          Icon(icon, size: 20, color: AppTheme.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -739,26 +871,31 @@ class _CreateWishPageState extends State<CreateWishPage> {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textHeading,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   desc,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.textBody,
+                    color: Colors.grey[500],
+                    height: 1.3,
                   ),
                 ),
               ],
             ),
           ),
-          Switch(
-            value: value,
-            activeThumbColor: AppTheme.primary,
-            onChanged: onChanged,
+          const SizedBox(width: 8),
+          Transform.scale(
+            scale: 0.8,
+            child: CupertinoSwitch(
+              value: value,
+              activeTrackColor: AppTheme.primary,
+              onChanged: onChanged,
+            ),
           ),
         ],
       ),
