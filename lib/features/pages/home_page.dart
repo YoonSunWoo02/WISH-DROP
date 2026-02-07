@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // Supabase 실시간 데이터 스트림
   final _projectStream = Supabase.instance.client
       .from('projects')
       .stream(primaryKey: ['id'])
@@ -24,10 +26,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, // Slate-50
+      backgroundColor: AppTheme.background,
       extendBody: true,
       extendBodyBehindAppBar: true,
 
+      // 1. 상단 앱바
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: ClipRRect(
@@ -86,139 +89,59 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
+      // 2. 메인 바디 (StreamBuilder)
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _projectStream,
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          // 1) 로딩 중일 때
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
 
-          final projects = snapshot.data!
-              .map((e) => ProjectModel.fromJson(e))
-              .toList();
+          // 2) 데이터 로드 완료
+          final projects =
+              snapshot.data?.map((e) => ProjectModel.fromJson(e)).toList() ??
+              [];
+          final isEmpty = projects.isEmpty;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(0, 90, 0, 150),
+          return Stack(
             children: [
-              // 헤더
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                child: Text(
-                  "지민님,\n원하는 선물을 시작해볼까요?",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textHeading,
-                    height: 1.3,
-                  ),
-                ),
-              ),
+              // 메인 컨텐츠 (비었으면 EmptyState, 있으면 ListState)
+              if (isEmpty)
+                _buildEmptyState(context)
+              else
+                _buildListState(projects),
 
-              // 요약 정보 카드
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.borderColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _summaryItem(
-                      "모인 금액",
-                      "1,166,000원",
-                      CrossAxisAlignment.start,
-                    ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: AppTheme.borderColor,
-                    ),
-                    _summaryItem("참여한 친구", "17명", CrossAxisAlignment.end),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // 리스트 타이틀
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "진행 중인 위시",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textHeading,
+              // 플로팅 버튼 (리스트가 있을 때만 표시)
+              if (!isEmpty)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 90,
+                  child: Center(
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: FloatingActionButton(
+                        onPressed: () => _navigateToCreatePage(context),
+                        backgroundColor: AppTheme.primary,
+                        elevation: 4,
+                        shape: const CircleBorder(),
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                       ),
                     ),
-                    Row(
-                      children: [
-                        Text(
-                          "전체보기",
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.primary,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 16,
-                          color: AppTheme.primary,
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-
-              // 프로젝트 리스트
-              if (projects.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(40),
-                  child: Center(child: Text("등록된 위시가 없어요.")),
-                )
-              else
-                ...projects.map((p) => _HomeProjectCard(project: p)),
             ],
           );
         },
       ),
 
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90),
-        child: SizedBox(
-          width: 56,
-          height: 56,
-          child: FloatingActionButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const CreateWishPage()),
-            ),
-            backgroundColor: AppTheme.primary,
-            elevation: 4,
-            shape: const CircleBorder(),
-            child: const Icon(Icons.add, color: Colors.white, size: 28),
-          ),
-        ),
-      ),
-
+      // 3. 하단 네비게이션
       bottomNavigationBar: ClipRRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -242,6 +165,362 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _navigateToCreatePage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreateWishPage()),
+    );
+  }
+
+  // ✨ [Empty State] 위시가 없을 때 나오는 화면 (수정됨: IntrinsicHeight 추가)
+  Widget _buildEmptyState(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            // ✨ [중요] IntrinsicHeight 추가: 내부 높이를 계산하여 Spacer가 작동하게 함
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 100, 24, 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 헤더
+                    const Text(
+                      "지민님, \n원하는 선물을 시작해볼까요?",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textHeading,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 60),
+
+                    // 일러스트레이션 (Stack & Transform)
+                    Center(
+                      child: SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    AppTheme.primary.withOpacity(0.05),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.0, 0.7],
+                                ),
+                              ),
+                            ),
+                            Transform.rotate(
+                              angle: 3 * pi / 180,
+                              child: Container(
+                                width: 96,
+                                height: 96,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEEF2FF),
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: const Icon(
+                                  Icons.redeem,
+                                  size: 48,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 40,
+                              right: 45,
+                              child: Transform.rotate(
+                                angle: -6 * pi / 180,
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFEEF2FF),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.favorite,
+                                    size: 20,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 45,
+                              left: 40,
+                              child: Transform.rotate(
+                                angle: 12 * pi / 180,
+                                child: Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFEEF2FF),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.auto_awesome,
+                                    size: 24,
+                                    color: Color(0xFFA5B4FC),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // 텍스트
+                    const Text(
+                      "아직 등록된 위시가 없어요",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textHeading,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "친구들과 함께 꿈꾸던 선물을 나눠보세요.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    // 점선 버튼
+                    CustomPaint(
+                      painter: DashedRectPainter(
+                        color: const Color(0xFFC7D2FE),
+                        strokeWidth: 2.0,
+                        gap: 5.0,
+                      ),
+                      child: InkWell(
+                        onTap: () => _navigateToCreatePage(context),
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          width: double.infinity,
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.primary.withOpacity(0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.add,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                "첫 번째 위시를 만들어보세요!",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const Spacer(), // ✨ IntrinsicHeight 덕분에 이제 안전하게 작동합니다!
+                    // 팁 섹션
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text("💡", style: TextStyle(fontSize: 20)),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Tip",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                "인기 있는 선물 리스트를 구경해보세요.",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // 위시 리스트가 있을 때 화면
+  Widget _buildListState(List<ProjectModel> projects) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 90, 0, 150),
+      children: [
+        // 헤더
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Text(
+            "지민님,\n원하는 선물을 시작해볼까요?",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textHeading,
+              height: 1.3,
+            ),
+          ),
+        ),
+
+        // 요약 정보 카드
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _summaryItem("모인 금액", "1,166,000원", CrossAxisAlignment.start),
+              Container(width: 1, height: 40, color: AppTheme.borderColor),
+              _summaryItem("참여한 친구", "17명", CrossAxisAlignment.end),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 리스트 타이틀
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "진행 중인 위시",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textHeading,
+                ),
+              ),
+              Row(
+                children: [
+                  Text(
+                    "전체보기",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, size: 16, color: AppTheme.primary),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // 프로젝트 카드 리스트
+        ...projects.map((p) => _HomeProjectCard(project: p)),
+      ],
     );
   }
 
@@ -333,7 +612,6 @@ class _HomeProjectCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // 이미지 영역
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(15),
@@ -358,7 +636,6 @@ class _HomeProjectCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // D-Day 및 제목
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -399,8 +676,6 @@ class _HomeProjectCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // 프로그레스
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -431,79 +706,26 @@ class _HomeProjectCard extends StatelessWidget {
                       minHeight: 8,
                     ),
                   ),
-
-                  // 하단 버튼
                   const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // 친구 프로필 (더미)
-                      SizedBox(
-                        width: 100,
-                        height: 28,
-                        child: Stack(
-                          children: [
-                            for (int i = 0; i < 3; i++)
-                              Positioned(
-                                left: i * 20.0,
-                                child: CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: Colors.white,
-                                  child: CircleAvatar(
-                                    radius: 12,
-                                    backgroundImage: NetworkImage(
-                                      'https://i.pravatar.cc/150?img=${i + 5}',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            const Positioned(
-                              left: 60,
-                              child: CircleAvatar(
-                                radius: 14,
-                                backgroundColor: Colors.white,
-                                child: CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: Color(0xFFF1F5F9),
-                                  child: Text(
-                                    "+12",
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ProjectDetailPage(project: project),
                         ),
                       ),
-
-                      SizedBox(
-                        height: 36,
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ProjectDetailPage(project: project),
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.textHeading, // Slate-900
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: const Text(
-                            "상세보기",
-                            style: TextStyle(fontSize: 13),
-                          ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.textHeading,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                    ],
+                      child: const Text("상세보기", style: TextStyle(fontSize: 13)),
+                    ),
                   ),
                 ],
               ),
@@ -513,4 +735,51 @@ class _HomeProjectCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// 🎨 점선 테두리 그리기 (CustomPainter)
+class DashedRectPainter extends CustomPainter {
+  final double strokeWidth;
+  final Color color;
+  final double gap;
+
+  DashedRectPainter({
+    this.strokeWidth = 2.0,
+    this.color = Colors.black,
+    this.gap = 5.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final Path path = Path();
+    path.addRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        const Radius.circular(24),
+      ),
+    );
+
+    Path dashPath = Path();
+    double dashWidth = 10.0;
+    double distance = 0.0;
+
+    for (PathMetric pathMetric in path.computeMetrics()) {
+      while (distance < pathMetric.length) {
+        dashPath.addPath(
+          pathMetric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth + gap;
+      }
+    }
+    canvas.drawPath(dashPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
