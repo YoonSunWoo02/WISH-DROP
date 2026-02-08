@@ -3,9 +3,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/pages/home_page.dart';
+// ⚠️ 경로가 다르다면 본인의 프로젝트 구조에 맞춰 수정해주세요.
+import 'package:wish_drop/repositories/project_repository.dart';
 
 class CreateWishPage extends StatefulWidget {
   const CreateWishPage({super.key});
@@ -32,12 +33,16 @@ class _CreateWishPageState extends State<CreateWishPage> {
   // ⚙️ Step 3: 설정
   bool _allowAnonymous = true;
   bool _allowCheering = true;
+  // ✨ [수정] 누락되었던 컨트롤러 추가
+  final TextEditingController _welcomeMessageController =
+      TextEditingController();
 
   @override
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
     _amountController.dispose();
+    _welcomeMessageController.dispose(); // ✨ dispose 추가
     _pageController.dispose();
     super.dispose();
   }
@@ -79,56 +84,47 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
   // --- 🚀 Supabase 저장 로직 ---
   Future<void> _submitWish() async {
+    // ✨ [수정] ...으로 되어있던 부분을 실제 로직으로 변경
+    if (_titleController.text.trim().isEmpty) {
+      _showErrorDialog("선물 이름을 입력해주세요.");
+      return;
+    }
+    if (_imageFile == null) {
+      _showErrorDialog("선물 이미지를 등록해주세요.");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) throw Exception("로그인이 필요합니다.");
+      // Repository 호출
+      final repository = ProjectRepository();
 
-      String? imageUrl;
+      await repository.createWish(
+        title: _titleController.text,
+        description: _descController.text,
+        targetAmount:
+            int.tryParse(_amountController.text.replaceAll(',', '')) ?? 100000,
+        endDate: _endDate,
+        imageFile: _imageFile,
+        allowAnonymous: _allowAnonymous,
+        allowMessages: _allowCheering,
+        welcomeMessage: _allowCheering ? _welcomeMessageController.text : null,
+      );
 
-      // 1. 이미지 업로드
-      if (_imageFile != null) {
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
-        await Supabase.instance.client.storage
-            .from('wish_images')
-            .upload(
-              fileName,
-              _imageFile!,
-              fileOptions: const FileOptions(contentType: 'image/jpeg'),
-            );
-        imageUrl = Supabase.instance.client.storage
-            .from('wish_images')
-            .getPublicUrl(fileName);
-      }
-
-      // 2. 금액 파싱
-      int targetAmount =
-          int.tryParse(_amountController.text.replaceAll(',', '')) ?? 0;
-      if (targetAmount <= 0) targetAmount = 100000;
-
-      // 3. DB Insert
-      await Supabase.instance.client.from('projects').insert({
-        'title': _titleController.text,
-        'description': _descController.text,
-        'target_amount': targetAmount,
-        'current_amount': 0,
-        'end_date': _endDate.toIso8601String(),
-        'thumbnail_url': imageUrl,
-        'user_id': userId,
-        'allow_anonymous': _allowAnonymous,
-        'allow_messages': _allowCheering,
-        'status': 'active',
-      });
-
+      // ✨ [수정] 성공 처리 로직 복구
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (context) => const HomePage()),
           (route) => false,
         );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("위시가 생성되었습니다! 🎉")));
       }
     } catch (e) {
+      // 에러 처리
       if (mounted) {
         _showErrorDialog("오류가 발생했습니다.\n$e");
       }
@@ -137,7 +133,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
     }
   }
 
-  // ✨ [추가] 에러 팝업 (로그인 화면 스타일)
+  // 🎨 에러 팝업
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -150,22 +146,20 @@ class _CreateWishPageState extends State<CreateWishPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 아이콘
               Container(
                 width: 56,
                 height: 56,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFEF2F2), // Red-50
+                  color: Color(0xFFFEF2F2),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.error_rounded,
                   color: Color(0xFFEF4444),
                   size: 28,
-                ), // Error-Red
+                ),
               ),
               const SizedBox(height: 20),
-              // 제목 & 내용
               const Text(
                 "입력 확인",
                 style: TextStyle(
@@ -185,7 +179,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              // 버튼
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -212,7 +205,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
     );
   }
 
-  // ✨ [수정] 페이지 이동 (유효성 검사 추가)
+  // 페이지 이동 함수
   void _nextPage() {
     // Step 1 유효성 검사
     if (_currentStep == 0) {
@@ -418,7 +411,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 24),
 
-          // 이미지 업로드
           _sectionTitle("선물 이미지", isRequired: true),
           const SizedBox(height: 10),
           GestureDetector(
@@ -478,7 +470,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 20),
 
-          // 선물 이름
           _sectionTitle("선물 이름", isRequired: true),
           const SizedBox(height: 10),
           _customTextField(
@@ -498,7 +489,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 20),
 
-          // 선물 설명
           _sectionTitle("선물 설명", isRequired: false),
           const SizedBox(height: 10),
           _customTextField(
@@ -534,7 +524,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 32),
 
-          // 목표 금액
           const Text(
             "목표 금액",
             style: TextStyle(
@@ -595,7 +584,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
           const SizedBox(height: 32),
 
-          // 종료 날짜
           const Text(
             "종료 날짜",
             style: TextStyle(
@@ -697,7 +685,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 24),
 
-          // 1. 익명 후원 허용
           _buildToggleOption(
             icon: Icons.person_off,
             title: "익명 후원 허용",
@@ -707,7 +694,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
           const SizedBox(height: 12),
 
-          // 2. 응원 메시지 허용
           _buildToggleOption(
             icon: Icons.chat_bubble,
             title: "응원 메시지 허용",
@@ -717,7 +703,6 @@ class _CreateWishPageState extends State<CreateWishPage> {
           ),
 
           const SizedBox(height: 24),
-          // 안내 박스
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(

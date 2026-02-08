@@ -3,11 +3,13 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart'; // 리포지토리를 쓰면 이건 없어도 됩니다 (선택)
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/data/project_model.dart';
 import 'package:wish_drop/features/pages/project_detail_page.dart';
 import 'package:wish_drop/features/pages/create_wish_page.dart';
+// ✨ [필수 추가] 리포지토리 파일 import
+import 'package:wish_drop/repositories/project_repository.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,11 +19,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Supabase 실시간 데이터 스트림
-  final _projectStream = Supabase.instance.client
-      .from('projects')
-      .stream(primaryKey: ['id'])
-      .order('created_at', ascending: false);
+  // ✨ Supabase 직접 호출 대신 리포지토리 사용
+  final _projectStream = ProjectRepository().getProjectStream();
 
   @override
   Widget build(BuildContext context) {
@@ -175,14 +174,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ✨ [Empty State] 위시가 없을 때 나오는 화면 (수정됨: IntrinsicHeight 추가)
+  // ✨ [Empty State] 위시가 없을 때 나오는 화면
   Widget _buildEmptyState(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            // ✨ [중요] IntrinsicHeight 추가: 내부 높이를 계산하여 Spacer가 작동하게 함
             child: IntrinsicHeight(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 100, 24, 120),
@@ -375,7 +373,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
 
-                    const Spacer(), // ✨ IntrinsicHeight 덕분에 이제 안전하게 작동합니다!
+                    const Spacer(),
                     // 팁 섹션
                     Container(
                       padding: const EdgeInsets.all(16),
