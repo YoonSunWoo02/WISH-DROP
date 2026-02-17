@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // .env 사용
-import 'package:portone_flutter_v2/portone_flutter_v2.dart'; // ✅ V2 패키지
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:portone_flutter_v2/portone_flutter_v2.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/data/project_model.dart';
 import 'package:wish_drop/features/pages/donation_success_page.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DonationInputPage extends StatefulWidget {
   final ProjectModel project;
@@ -18,10 +18,8 @@ class DonationInputPage extends StatefulWidget {
 }
 
 class _DonationInputPageState extends State<DonationInputPage> {
-  // 기본 선택 금액
   int _selectedAmount = 10000;
 
-  // 텍스트 필드 제어용
   final TextEditingController _amountController = TextEditingController(
     text: "10,000",
   );
@@ -74,11 +72,10 @@ class _DonationInputPageState extends State<DonationInputPage> {
     });
   }
 
-  // 🚀 [핵심] 결제 버튼 눌렀을 때 실행되는 함수
+  // 🚀 [수정됨] 결제 버튼 로직
   void _onDonatePressed() async {
     if (_selectedAmount <= 0) return;
 
-    // 1. .env에서 키 값 확인
     final storeId = dotenv.env['STORE_ID'] ?? '';
     final channelKey = dotenv.env['CACAO_CHANNEL_KEY'] ?? '';
 
@@ -89,16 +86,27 @@ class _DonationInputPageState extends State<DonationInputPage> {
       return;
     }
 
-    // 2. PaymentRequest 데이터 생성
+    // ✅ [수정 1] customData를 Map<String, String>으로 만듭니다.
+    // 모든 값은 문자열(String)이어야 합니다.
+    Map<String, String> customDataMap = {
+      "userId": Supabase.instance.client.auth.currentUser?.id ?? '',
+      "projectId": widget.project.id.toString(), // int -> String 변환
+      "message": _msgController.text,
+    };
+
     final paymentRequest = PaymentRequest(
       storeId: storeId,
       channelKey: channelKey,
       paymentId: "payment-${DateTime.now().millisecondsSinceEpoch}",
       orderName: widget.project.title,
-      totalAmount: _selectedAmount.toInt(), // int형 사용
+      totalAmount: _selectedAmount.toInt(),
       currency: PaymentCurrency.KRW,
-      payMethod: PaymentPayMethod.easyPay, // ✅ 카카오페이 등 간편결제는 easyPay 필수
-      appScheme: 'wishdrop', // AndroidManifest/Info.plist 설정 필요
+      payMethod: PaymentPayMethod.easyPay,
+      appScheme: 'wishdrop',
+
+      // ✅ Map 그대로 전달 (jsonEncode 안 함)
+      customData: customDataMap,
+
       customer: Customer(
         fullName: "홍길동",
         phoneNumber: "010-1234-5678",
@@ -106,7 +114,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
       ),
     );
 
-    // 3. 결제 화면(PaymentScreen)으로 이동하여 결과 대기
+    // 결제 화면으로 이동
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -114,37 +122,14 @@ class _DonationInputPageState extends State<DonationInputPage> {
       ),
     );
 
-    // 4. 결제 결과 처리
-    if (result != null && result is PaymentResponse) {
-      // ✅ [추가된 부분] 결제가 성공했으면 DB에 기록하기!
-      try {
-        final supabase = Supabase.instance.client;
-
-        // donations 테이블에 추가 (트리거가 작동해서 총액도 같이 오름)
-        await supabase.from('donations').insert({
-          'project_id': widget.project.id, // 프로젝트 ID
-          'user_id': supabase.auth.currentUser!.id, // 로그인한 유저 ID
-          'amount': _selectedAmount, // 후원 금액
-          'message': _msgController.text, // 응원 메시지
-          'created_at': DateTime.now().toIso8601String(),
-          // 'payment_id': result.paymentId, // (선택) 나중에 대조해볼 때 필요함
-        });
-
-        if (!mounted) return;
-
-        // 성공 페이지로 이동!
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DonationSuccessPage()),
-        );
-      } catch (e) {
-        // DB 저장 실패 시 (돈은 나갔는데 DB 에러난 경우 - 실제론 환불 로직이 필요하지만 일단 에러 표시)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('결제는 성공했으나 기록 저장 실패: $e')));
-      }
+    // 결제 성공 처리 (DB 저장은 서버가 함)
+    if (result != null) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DonationSuccessPage()),
+      );
     } else {
-      // 결제 취소 또는 실패
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -171,7 +156,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 프로젝트 정보 (기존 유지)
+                  // 프로젝트 정보 UI
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -240,7 +225,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
                   ),
                   const SizedBox(height: 32),
 
-                  // 금액 선택 (기존 유지)
+                  // 금액 선택 UI
                   const Text(
                     "얼마를 후원하시겠어요?",
                     style: TextStyle(
@@ -292,7 +277,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
                   ),
                   const SizedBox(height: 32),
 
-                  // 금액 입력 (기존 유지)
+                  // 금액 입력창 UI
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
@@ -356,7 +341,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
                   ),
                   const SizedBox(height: 32),
 
-                  // 응원 메시지 (기존 유지)
+                  // 응원 메시지 UI
                   const Text(
                     "응원 메시지 (선택)",
                     style: TextStyle(
@@ -394,7 +379,7 @@ class _DonationInputPageState extends State<DonationInputPage> {
             ),
           ),
 
-          // 하단 결제 버튼
+          // 하단 버튼
           Container(
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
@@ -474,28 +459,26 @@ class _DonationInputPageState extends State<DonationInputPage> {
 }
 
 // ---------------------------------------------------------------------
-// 🔥 [수정된 부분] PaymentScreen
+// 🔥 [수정 2] PaymentScreen (onError 추가)
 // ---------------------------------------------------------------------
 class PaymentScreen extends StatelessWidget {
-  // 생성자 매개변수 이름을 'paymentRequest'로 맞췄습니다.
   const PaymentScreen({super.key, required this.paymentRequest});
   final PaymentRequest paymentRequest;
 
   @override
   Widget build(BuildContext context) {
-    // 위젯 이름 확인: PortonePayment (소문자 o)
     return PortonePayment(
       appBar: AppBar(title: const Text('결제하기')),
       data: paymentRequest,
       initialChild: const Center(child: CircularProgressIndicator()),
       callback: (PaymentResponse response) {
-        // 결제 완료 (성공/실패 여부는 response 안에 있음)
+        // 결제 완료 (성공/취소 등) -> 결과 반환
         Navigator.pop(context, response);
       },
-      onError: (Object? error) {
-        // 결제 모듈 자체 에러
-        debugPrint('결제 에러: $error');
-        Navigator.pop(context, null);
+      // ✅ onError는 필수 항목입니다!
+      onError: (String error) {
+        debugPrint('결제 모듈 에러: $error');
+        Navigator.pop(context, null); // 에러 시 null 반환
       },
     );
   }
