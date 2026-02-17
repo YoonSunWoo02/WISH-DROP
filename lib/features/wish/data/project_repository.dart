@@ -1,19 +1,28 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// ❌ import 'dart:io'; <-- 절대 사용 금지 (웹 호환성 위해)
+import 'project_model.dart';
 
 class ProjectRepository {
-  final SupabaseClient _client = Supabase.instance.client;
+  final _supabase = Supabase.instance.client;
 
-  // 1️⃣ [추가된 부분] 홈 화면에서 위시 목록 불러오기 (실시간 연동)
-  Stream<List<Map<String, dynamic>>> getProjectStream() {
-    return _client
-        .from('projects')
-        .stream(primaryKey: ['id']) // id를 기준으로 실시간 감시
-        .order('created_at', ascending: false); // 최신순 정렬
+  // 1. 모든 프로젝트 가져오기 (기존 유지)
+  Future<List<ProjectModel>> getProjects() async {
+    try {
+      final response = await _supabase
+          .from('projects')
+          .select()
+          .order('created_at', ascending: false);
+      final List<dynamic> data = response;
+      return data.map((json) => ProjectModel.fromJson(json)).toList();
+    } catch (e) {
+      debugPrint('프로젝트 로딩 에러: $e');
+      return [];
+    }
   }
 
-  // 2️⃣ 위시 만들기 (아까 고친 웹 호환 코드)
+  // 2. 🚀 [수정됨] 새로운 위시 생성 및 이미지 업로드
   Future<void> createWish({
     required String title,
     required String description,
@@ -22,42 +31,74 @@ class ProjectRepository {
     required XFile? imageFile,
     required bool allowAnonymous,
     required bool allowMessages,
-    String? welcomeMessage,
   }) async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) throw Exception("로그인이 필요합니다.");
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception("로그인이 필요합니다.");
 
-    String? imageUrl;
+    // 🚨 여기를 'wish_images'로 정확히 수정!
+    const String bucketName = 'wish_images';
 
-    if (imageFile != null) {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$userId.jpg';
+    try {
+      String? imageUrl;
 
-      // 웹/앱 호환되는 방식 (Bytes 업로드)
-      final imageBytes = await imageFile.readAsBytes();
+      if (imageFile != null) {
+        final fileExt = imageFile.path.split('.').last;
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+        final filePath = '${user.id}/$fileName';
 
-      await _client.storage
-          .from('wish_images')
-          .uploadBinary(
-            fileName,
-            imageBytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
+        if (kIsWeb) {
+          final bytes = await imageFile.readAsBytes();
+          await _supabase.storage
+              .from(bucketName) // 변수 사용
+              .uploadBinary(filePath, bytes);
+        } else {
+          final file = File(imageFile.path);
+          await _supabase.storage
+              .from(bucketName) // 변수 사용
+              .upload(filePath, file);
+        }
 
-      imageUrl = _client.storage.from('wish_images').getPublicUrl(fileName);
+        imageUrl = _supabase.storage
+            .from(bucketName) // 변수 사용
+            .getPublicUrl(filePath);
+      }
+
+      // DB 저장 (이전과 동일)
+      await _supabase.from('projects').insert({
+        'creator_id': user.id, // 🚨 'user_id'가 아니라 에러 메시지에 나온 'creator_id'로 수정!
+        'title': title,
+        'description': description,
+        'target_amount': targetAmount,
+        'current_amount': 0,
+        'thumbnail_url': imageUrl,
+        'end_date': endDate.toIso8601String(),
+        'allow_anonymous': allowAnonymous,
+        'allow_messages': allowMessages,
+      });
+
+      debugPrint("위시 생성 성공!");
+    } catch (e) {
+      debugPrint('위시 생성 에러: $e');
+      throw Exception('위시 생성 실패: $e');
     }
+  }
 
-    await _client.from('projects').insert({
-      'title': title,
-      'description': description,
-      'target_amount': targetAmount,
-      'current_amount': 0,
-      'end_date': endDate.toIso8601String(),
-      'thumbnail_url': imageUrl,
-      'creator_id': userId,
-      'allow_anonymous': allowAnonymous,
-      'allow_messages': allowMessages,
-      'welcome_message': welcomeMessage,
-      'status': 'active',
-    });
+  Future<List<ProjectModel>> getMyWishes() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      final response = await _supabase
+          .from('projects')
+          .select()
+          .eq('user_id', user.id) // 내 아이디와 일치하는 것만!
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response;
+      return data.map((json) => ProjectModel.fromJson(json)).toList();
+    } catch (e) {
+      debugPrint('내 위시 로딩 에러: $e');
+      return [];
+    }
   }
 }

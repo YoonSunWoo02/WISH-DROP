@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 // 👇 경로 수정됨
 import 'package:wish_drop/features/data/funding_repository.dart';
-import 'package:wish_drop/features/data/project_model.dart';
+import 'package:wish_drop/features/wish/data/project_model.dart';
 
 // --- State ---
 abstract class FundingState {}

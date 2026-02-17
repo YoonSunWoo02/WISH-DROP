@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
-import 'package:wish_drop/features/pages/signup_page.dart';
-import 'package:wish_drop/features/pages/home_page.dart';
+import 'package:wish_drop/features/auth/presentation/pages/signup_page.dart';
+import 'package:wish_drop/features/wish/presentation/pages/home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

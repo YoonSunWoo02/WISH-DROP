@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart'; // kIsWeb
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:wish_drop/repositories/project_repository.dart';
+import 'package:wish_drop/features/wish/data/project_repository.dart';
 
 class CreateWishPage extends StatefulWidget {
   const CreateWishPage({super.key});
@@ -102,7 +102,7 @@ class _CreateWishPageState extends State<CreateWishPage> {
         description: _descController.text,
         targetAmount: int.parse(_amountController.text),
         endDate: _endDate,
-        imageFile: _imageFile,
+        imageFile: _imageFile, // XFile 타입인지 확인
         allowAnonymous: _allowAnonymous,
         allowMessages: _allowMessages,
       );

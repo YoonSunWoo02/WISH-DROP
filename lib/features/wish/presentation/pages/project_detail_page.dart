@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 Supabase 패키지 추가
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
-import 'package:wish_drop/features/data/project_model.dart';
-import 'package:wish_drop/features/pages/donation_input_page.dart';
+import 'package:wish_drop/features/wish/data/project_model.dart';
+import 'package:wish_drop/features/donation/presentation/pages/donation_input_page.dart';
 
 class ProjectDetailPage extends StatelessWidget {
   final ProjectModel project;
@@ -12,7 +12,6 @@ class ProjectDetailPage extends StatelessWidget {
 
   // 🗑️ 프로젝트 삭제 로직
   Future<void> _deleteProject(BuildContext context) async {
-    // 1. 확인 팝업 띄우기
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -39,25 +38,21 @@ class ProjectDetailPage extends StatelessWidget {
       ),
     );
 
-    // 2. 취소했으면 함수 종료
     if (confirmed != true) return;
 
     try {
-      // 3. Supabase DB에서 삭제 요청
       await Supabase.instance.client
           .from('projects')
           .delete()
-          .eq('id', project.id); // 현재 프로젝트 ID와 일치하는 행 삭제
+          .eq('id', project.id);
 
-      // 4. 성공 시 홈 화면으로 복귀
       if (context.mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context); // 상세페이지 닫기
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text("위시리스트가 삭제되었습니다.")));
       }
     } catch (e) {
-      // 5. 에러 처리
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
@@ -69,6 +64,14 @@ class ProjectDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat("#,###");
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    // 💡 내가 만든 위시인지 확인 (삭제 버튼 노출 여부 결정)
+    final bool isMyProject = project.creatorId == currentUser?.id;
+
+    // 📊 진행률 계산
+    final double progress = project.targetAmount > 0
+        ? (project.currentAmount / project.targetAmount).clamp(0.0, 1.0)
+        : 0.0;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -79,33 +82,49 @@ class ProjectDetailPage extends StatelessWidget {
         ),
         title: const Text("선물 상세"),
         actions: [
-          // 상단에도 삭제 버튼 배치 (선택 사항, 아이콘 형태)
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.grey),
-            onPressed: () => _deleteProject(context),
-          ),
+          if (isMyProject) // 🚨 내 위시일 때만 상단 삭제 아이콘 표시
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              onPressed: () => _deleteProject(context),
+            ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 150), // 하단 패딩 늘림 (버튼 공간 확보)
+        padding: const EdgeInsets.only(bottom: 150),
         child: Column(
           children: [
             // 1. 이미지 영역
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Container(
-                  margin: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.borderColor),
-                    color: Colors.white,
-                    image: DecorationImage(
-                      image: NetworkImage(project.thumbnailUrl ?? ''),
-                      fit: BoxFit.cover,
+            AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                margin: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
                     ),
-                  ),
+                  ],
+                  color: Colors.white,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child:
+                      project.thumbnailUrl != null &&
+                          project.thumbnailUrl!.isNotEmpty
+                      ? Image.network(
+                          project.thumbnailUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(
+                                Icons.broken_image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                        )
+                      : const Icon(Icons.image, size: 50, color: Colors.grey),
                 ),
               ),
             ),
@@ -115,34 +134,42 @@ class ProjectDetailPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
-                  const Text(
-                    "🎓 졸업 선물 프로젝트",
-                    style: TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "🎁 위시 프로젝트",
+                      style: TextStyle(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     project.title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textHeading,
-                      height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     project.description,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppTheme.textBody,
-                      fontSize: 14,
-                      height: 1.5,
+                      fontSize: 15,
+                      height: 1.6,
                     ),
                   ),
                 ],
@@ -155,36 +182,35 @@ class ProjectDetailPage extends StatelessWidget {
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: AppTheme.borderColor),
               ),
               child: Column(
                 children: [
                   SizedBox(
-                    width: 180,
-                    height: 180,
+                    width: 160,
+                    height: 160,
                     child: CustomPaint(
-                      painter: CircularGaugePainter(progress: project.progress),
+                      painter: CircularGaugePainter(progress: progress),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              "${(project.progress * 100).toInt()}%",
+                              "${(progress * 100).toInt()}%",
                               style: const TextStyle(
-                                fontSize: 36,
+                                fontSize: 40,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.textHeading,
                               ),
                             ),
-                            const SizedBox(height: 4),
                             const Text(
-                              "ACHIEVED",
+                              "달성 완료",
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.grey,
-                                letterSpacing: 1.5,
+                                letterSpacing: 1.2,
                               ),
                             ),
                           ],
@@ -193,7 +219,7 @@ class ProjectDetailPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  const Divider(height: 1, color: AppTheme.borderColor),
+                  const Divider(height: 1),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -204,7 +230,7 @@ class ProjectDetailPage extends StatelessWidget {
                       ),
                       Container(
                         width: 1,
-                        height: 40,
+                        height: 30,
                         color: AppTheme.borderColor,
                       ),
                       _statItem(
@@ -216,120 +242,75 @@ class ProjectDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-
-            // 4. 메시지 박스
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.borderColor),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "지민님의 메시지",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: AppTheme.textHeading,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    "\"졸업하고 새로운 시작을 위해 꼭 필요한 아이패드예요! 응원해주시는 모든 분들 정말 감사합니다.\"",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.textBody,
-                      fontStyle: FontStyle.italic,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
 
       // 6. 하단 버튼 영역
       bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 30),
-        decoration: const BoxDecoration(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        decoration: BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: AppTheme.borderColor)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
         ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 선물하기 버튼
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DonationInputPage(project: project),
-                    ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DonationInputPage(project: project),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    shadowColor: AppTheme.primary.withOpacity(0.2),
-                    elevation: 8,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.volunteer_activism, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        "한 조각 선물하기",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  elevation: 0,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.volunteer_activism, size: 20),
+                    SizedBox(width: 10),
+                    Text(
+                      "한 조각 선물하기",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // 🗑️ 위시 삭제하기 버튼 (추가됨)
-              TextButton.icon(
+            ),
+            if (isMyProject) ...[
+              // 🚨 내 위시일 때만 하단 삭제 텍스트 버튼 표시
+              const SizedBox(height: 12),
+              TextButton(
                 onPressed: () => _deleteProject(context),
-                icon: const Icon(
-                  Icons.delete_forever,
-                  size: 18,
-                  color: Colors.redAccent,
-                ),
-                label: const Text(
+                child: const Text(
                   "위시 삭제하기",
                   style: TextStyle(
                     color: Colors.redAccent,
-                    fontSize: 14,
                     fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  backgroundColor: Colors.red.withOpacity(0.05),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -338,18 +319,11 @@ class ProjectDetailPage extends StatelessWidget {
   Widget _statItem(String label, String value) {
     return Column(
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.grey,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 6),
         Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: AppTheme.textHeading,
@@ -360,7 +334,7 @@ class ProjectDetailPage extends StatelessWidget {
   }
 }
 
-// 🎨 원형 게이지 Painter (기존 동일)
+// 🎨 원형 게이지 Painter (동일)
 class CircularGaugePainter extends CustomPainter {
   final double progress;
   CircularGaugePainter({required this.progress});
@@ -369,10 +343,10 @@ class CircularGaugePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-    const strokeWidth = 12.0;
+    const strokeWidth = 14.0;
 
     final trackPaint = Paint()
-      ..color = AppTheme.borderColor
+      ..color = const Color(0xFFF0F0F0)
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
 

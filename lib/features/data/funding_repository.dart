@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 // 👇 경로가 사용자님 폴더 구조에 맞게 변경되었습니다.
-import 'package:wish_drop/features/data/project_model.dart';
+import 'package:wish_drop/features/wish/data/project_model.dart';
 
 class FundingRepository {
   final SupabaseClient _supabase = Supabase.instance.client;
