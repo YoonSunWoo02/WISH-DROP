@@ -7,6 +7,16 @@ import 'project_model.dart';
 class ProjectRepository {
   final _supabase = Supabase.instance.client;
 
+  Stream<List<ProjectModel>> watchProjects() {
+    return _supabase
+        .from('projects')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map(
+          (data) => data.map((json) => ProjectModel.fromJson(json)).toList(),
+        );
+  }
+
   // 1. 모든 프로젝트 가져오기 (기존 유지)
   Future<List<ProjectModel>> getProjects() async {
     try {

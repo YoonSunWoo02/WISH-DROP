@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 추가
 import '../../../../core/theme.dart';
 import '../../data/project_model.dart';
 import '../../data/project_repository.dart';
 import '../widgets/project_card.dart';
 import 'create_wish_page.dart';
 import 'project_detail_page.dart';
-import '../../../../profile/presentation/pages/my_info_page.dart'; // MyInfoPage 임포트 추가
+import '../../../../profile/presentation/pages/my_info_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -17,22 +18,30 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  // 1. 홈 탭 (위시 리스트)
+  // 🔄 1. 홈 탭 (실시간 위시 리스트)
   Widget _buildHomeTab() {
-    return FutureBuilder<List<ProjectModel>>(
-      future: ProjectRepository().getProjects(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // 🔥 Supabase 실시간 스트림 연결: 'projects' 테이블의 변화를 감시합니다.
+      stream: Supabase.instance.client
+          .from('projects')
+          .stream(primaryKey: ['id']) // id를 기준으로 변화를 추적
+          .order('created_at', ascending: false),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text("에러가 발생했습니다: ${snapshot.error}"));
+          return Center(child: Text("에러 발생: ${snapshot.error}"));
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(child: Text("아직 등록된 위시가 없습니다."));
         }
 
-        final projects = snapshot.data!;
+        // 스트림으로 들어온 JSON 데이터를 ProjectModel 리스트로 변환
+        final projects = snapshot.data!
+            .map((json) => ProjectModel.fromJson(json))
+            .toList();
+
         return ListView.builder(
           padding: const EdgeInsets.all(20),
           itemCount: projects.length,
@@ -40,8 +49,9 @@ class _HomePageState extends State<HomePage> {
             final project = projects[index];
             return ProjectCard(
               project: project,
-              onTap: () {
-                Navigator.push(
+              onTap: () async {
+                // 상세 페이지 이동 (돌아올 때를 위해 await 사용 가능)
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => ProjectDetailPage(project: project),
@@ -55,18 +65,17 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // 2. 친구 탭 (준비 중)
+  // 2. 친구 탭
   Widget _buildFriendsTab() {
     return const Center(child: Text("친구들의 위시를 준비 중입니다."));
   }
 
   @override
   Widget build(BuildContext context) {
-    // 탭 이동 시 보여줄 페이지들
     final List<Widget> pages = [
       _buildHomeTab(),
       _buildFriendsTab(),
-      const MyInfoPage(), // 정상적으로 임포트된 MyInfoPage
+      const MyInfoPage(),
     ];
 
     return Scaffold(
