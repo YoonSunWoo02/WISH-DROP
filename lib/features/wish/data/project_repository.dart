@@ -10,7 +10,7 @@ class ProjectRepository {
   Stream<List<ProjectModel>> watchProjects() {
     return _supabase
         .from('projects')
-        .stream(primaryKey: ['id'])
+        .stream(primaryKey: ['id']) // id를 기준으로 변화 감지
         .order('created_at', ascending: false)
         .map(
           (data) => data.map((json) => ProjectModel.fromJson(json)).toList(),
@@ -30,6 +30,16 @@ class ProjectRepository {
       debugPrint('프로젝트 로딩 에러: $e');
       return [];
     }
+  }
+
+  Stream<List<ProjectModel>> getProjectsStream() {
+    return _supabase
+        .from('projects')
+        .stream(primaryKey: ['id']) // id 기준으로 변화 감지
+        .order('created_at', ascending: false)
+        .map(
+          (data) => data.map((json) => ProjectModel.fromJson(json)).toList(),
+        );
   }
 
   // 2. 🚀 [수정됨] 새로운 위시 생성 및 이미지 업로드

@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 class DonationRepository {
   final _supabase = Supabase.instance.client;
 
-  // 1. 후원하기 (DB 업데이트 로직 포함)
   Future<void> donate({
     required String projectId,
     required int amount,
@@ -14,20 +13,22 @@ class DonationRepository {
     if (user == null) throw Exception("로그인이 필요합니다.");
 
     try {
-      // 🚨 ID 타입 확인: DB의 ID가 숫자(int8)라면 int로 변환해서 쿼리해야 합니다.
+      // ✅ [수정 1] 문자열 ID를 숫자로 변환 (DB가 int8 타입일 경우 필수)
       final int parsedProjectId = int.parse(projectId);
 
-      // 1. 후원 기록 생성 (이건 RLS가 잘 풀려있어서 성공할 겁니다)
-      print("📝 [1단계] 후원 기록 생성 중...");
+      print("📝 [1단계] 후원 기록 생성 중... Project ID: $parsedProjectId");
+
+      // ✅ [수정 2] 변환된 parsedProjectId 사용
       await _supabase.from('donations').insert({
-        'project_id': parsedProjectId,
+        'project_id': parsedProjectId, // projectId (X) -> parsedProjectId (O)
         'user_id': user.id,
         'amount': amount,
         'message': message,
       });
 
-      // 2. 프로젝트 현재 금액 가져오기
-      print("🔍 [2단계] 현재 프로젝트 금액 조회 중... ID: $parsedProjectId");
+      print("🔍 [2단계] 현재 프로젝트 금액 조회 중...");
+
+      // ✅ [수정 3] 여기서도 parsedProjectId 사용
       final project = await _supabase
           .from('projects')
           .select('current_amount')
@@ -41,22 +42,24 @@ class DonationRepository {
       final int currentAmount = project['current_amount'] ?? 0;
       final int nextAmount = currentAmount + amount;
 
-      // 3. 프로젝트 금액 업데이트
       print("🆙 [3단계] 금액 업데이트 중: $currentAmount -> $nextAmount");
+
+      // ✅ [수정 4] 여기서도 parsedProjectId 사용
       final response = await _supabase
           .from('projects')
           .update({'current_amount': nextAmount})
           .eq('id', parsedProjectId)
-          .select(); // 👈 여기서 [] 가 나오면 여전히 RLS 정책 문제입니다!
+          .select();
 
+      // 🚨 [핵심] 빈 리스트가 반환되면 권한(RLS) 문제임
       if (response.isEmpty) {
-        print("❌ [실패] DB 업데이트 결과가 빈 배열입니다. RLS Policy를 확인하세요.");
-        throw Exception("게이지 업데이트 권한이 없습니다. (RLS 정책 확인 필요)");
+        print("❌ [실패] DB 업데이트 권한이 없습니다. Supabase SQL Editor에서 권한을 풀어주세요.");
+        throw Exception("게이지 업데이트 실패 (RLS 정책 문제)");
       }
 
-      print("🚀 [성공] DB 업데이트 완료: $response");
+      print("🚀 [성공] DB 업데이트 및 후원 완료!");
     } catch (e) {
-      print("❌ [에러] 후원 처리 실패: $e");
+      print("❌ [치명적 에러] 후원 처리 실패: $e");
       rethrow;
     }
   }
