@@ -45,5 +45,28 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- KakaoTalk & 딥링크 설정 -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- wishdrop 딥링크 -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wishdrop</string>
+			</array>
+		</dict>
+		<!-- Kakao 네이티브 앱 키 스킴 (kakao{네이티브앱키}) -->
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kakaoYOUR_NATIVE_APP_KEY</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

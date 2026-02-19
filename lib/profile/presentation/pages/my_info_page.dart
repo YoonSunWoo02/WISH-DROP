@@ -21,7 +21,7 @@ class MyInfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
-    final email = user?.email ?? '이메일 없음';
+    final userId = user?.id;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -42,10 +42,58 @@ class MyInfoPage extends StatelessWidget {
               child: Icon(Icons.person, size: 40, color: Colors.white),
             ),
             const SizedBox(height: 12),
-            Text(
-              email,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            if (userId != null)
+              FutureBuilder<Map<String, dynamic>?>(
+                future: Supabase.instance.client
+                    .from('profiles')
+                    .select('nickname, friend_code')
+                    .eq('id', userId)
+                    .maybeSingle(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    );
+                  }
+                  if (snapshot.hasError || snapshot.data == null) {
+                    return const Text(
+                      '프로필 정보를 불러오지 못했어요',
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                    );
+                  }
+                  final data = snapshot.data!;
+                  final nickname = data['nickname'] as String? ?? '사용자';
+                  final code = data['friend_code'] as String? ?? '';
+                  return Column(
+                    children: [
+                      Text(
+                        nickname,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (code.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          code,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              )
+            else
+              const Text(
+                '로그인 정보가 없어요',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
             const SizedBox(height: 40),
 
             _buildMenuCard([
