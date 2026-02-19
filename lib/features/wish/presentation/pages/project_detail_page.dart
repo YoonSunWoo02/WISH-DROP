@@ -4,13 +4,40 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/wish/data/project_model.dart';
+import 'package:wish_drop/features/wish/data/project_repository.dart';
 import 'package:wish_drop/features/donation/presentation/pages/donation_input_page.dart';
 
-class ProjectDetailPage extends StatelessWidget {
+class ProjectDetailPage extends StatefulWidget {
   final ProjectModel project;
   const ProjectDetailPage({super.key, required this.project});
 
-  // 🗑️ 프로젝트 삭제 로직
+  @override
+  State<ProjectDetailPage> createState() => _ProjectDetailPageState();
+}
+
+class _ProjectDetailPageState extends State<ProjectDetailPage> {
+  late ProjectModel _project;
+  final _repo = ProjectRepository();
+  bool _isChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _project = widget.project;
+    _checkAndRefresh();
+  }
+
+  Future<void> _checkAndRefresh() async {
+    setState(() => _isChecking = true);
+    try {
+      await _repo.checkAndCompleteProjects();
+      final updated = await _repo.fetchProjectById(_project.id);
+      if (updated != null && mounted) setState(() => _project = updated);
+    } finally {
+      if (mounted) setState(() => _isChecking = false);
+    }
+  }
+
   Future<void> _deleteProject(BuildContext context) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
@@ -44,7 +71,7 @@ class ProjectDetailPage extends StatelessWidget {
       await Supabase.instance.client
           .from('projects')
           .delete()
-          .eq('id', project.id);
+          .eq('id', _project.id);
 
       if (context.mounted) {
         Navigator.pop(context); // 상세페이지 닫기
@@ -65,13 +92,9 @@ class ProjectDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat("#,###");
     final currentUser = Supabase.instance.client.auth.currentUser;
-    // 💡 내가 만든 위시인지 확인 (삭제 버튼 노출 여부 결정)
-    final bool isMyProject = project.creatorId == currentUser?.id;
-
-    // 📊 진행률 계산
-    final double progress = project.targetAmount > 0
-        ? (project.currentAmount / project.targetAmount).clamp(0.0, 1.0)
-        : 0.0;
+    final bool isMyProject = _project.creatorId == currentUser?.id;
+    final bool isCompleted = _project.isCompleted;
+    final double progress = _project.progressRate;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -82,7 +105,7 @@ class ProjectDetailPage extends StatelessWidget {
         ),
         title: const Text("선물 상세"),
         actions: [
-          if (isMyProject) // 🚨 내 위시일 때만 상단 삭제 아이콘 표시
+          if (isMyProject)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
               onPressed: () => _deleteProject(context),
@@ -93,6 +116,8 @@ class ProjectDetailPage extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 150),
         child: Column(
           children: [
+            // 종료 배너 (목표 달성 / 기간 만료)
+            if (isCompleted) _CompletionBanner(project: _project),
             // 1. 이미지 영역
             AspectRatio(
               aspectRatio: 1,
@@ -112,10 +137,10 @@ class ProjectDetailPage extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child:
-                      project.thumbnailUrl != null &&
-                          project.thumbnailUrl!.isNotEmpty
+                      _project.thumbnailUrl != null &&
+                          _project.thumbnailUrl!.isNotEmpty
                       ? Image.network(
-                          project.thumbnailUrl!,
+                          _project.thumbnailUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               const Icon(
@@ -154,7 +179,7 @@ class ProjectDetailPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    project.title,
+                    _project.title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 26,
@@ -164,7 +189,7 @@ class ProjectDetailPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    project.description,
+                    _project.description ?? '',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: AppTheme.textBody,
@@ -226,7 +251,7 @@ class ProjectDetailPage extends StatelessWidget {
                     children: [
                       _statItem(
                         "현재 모금액",
-                        "${currencyFormat.format(project.currentAmount)}원",
+                        "${currencyFormat.format(_project.currentAmount)}원",
                       ),
                       Container(
                         width: 1,
@@ -235,7 +260,7 @@ class ProjectDetailPage extends StatelessWidget {
                       ),
                       _statItem(
                         "목표 금액",
-                        "${currencyFormat.format(project.targetAmount)}원",
+                        "${currencyFormat.format(_project.targetAmount)}원",
                       ),
                     ],
                   ),
@@ -246,73 +271,94 @@ class ProjectDetailPage extends StatelessWidget {
         ),
       ),
 
-      // 6. 하단 버튼 영역
-      bottomSheet: Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DonationInputPage(project: project),
+      // 6. 하단 버튼 영역 (종료된 위시는 후원 버튼 숨김)
+      bottomSheet: isCompleted
+          ? null
+          : Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -5),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isChecking)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            '최신 상태 확인 중...',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              DonationInputPage(project: _project),
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.volunteer_activism, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            "한 조각 선물하기",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.volunteer_activism, size: 20),
-                    SizedBox(width: 10),
-                    Text(
-                      "한 조각 선물하기",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                  if (isMyProject) ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => _deleteProject(context),
+                      child: const Text(
+                        "위시 삭제하기",
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
-            if (isMyProject) ...[
-              // 🚨 내 위시일 때만 하단 삭제 텍스트 버튼 표시
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => _deleteProject(context),
-                child: const Text(
-                  "위시 삭제하기",
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 
@@ -330,6 +376,52 @@ class ProjectDetailPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── 종료 배너 (목표 달성 / 기간 만료) ─────────────────────────────
+
+class _CompletionBanner extends StatelessWidget {
+  final ProjectModel project;
+  const _CompletionBanner({required this.project});
+
+  @override
+  Widget build(BuildContext context) {
+    final byGoal = project.isCompletedByGoal;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+      color: byGoal ? Colors.green.shade50 : Colors.orange.shade50,
+      child: Row(
+        children: [
+          Text(byGoal ? '🎉' : '⏰', style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  byGoal ? '목표 금액을 달성했어요!' : '펀딩 기간이 종료됐어요.',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: byGoal ? Colors.green.shade800 : Colors.orange.shade800,
+                  ),
+                ),
+                Text(
+                  byGoal
+                      ? '많은 친구들의 응원 덕분이에요 💛'
+                      : '더 이상 후원을 받을 수 없어요.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: byGoal ? Colors.green.shade600 : Colors.orange.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

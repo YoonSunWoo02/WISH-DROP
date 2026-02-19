@@ -1,0 +1,266 @@
+# Wish Drop — Cursor AI 컨텍스트 파일
+# 이 파일을 프로젝트 루트에 `.cursorrules` 또는 `CLAUDE.md`로 저장하세요.
+# Cursor가 이 파일을 자동으로 읽고 프로젝트 전체 컨텍스트로 활용합니다.
+
+---
+
+## 🧠 너는 지금 어떤 프로젝트를 보고 있는가
+
+**Wish Drop**은 지인 기반 소셜 선물 펀딩 앱이다.
+사용자가 받고 싶은 선물(위시)을 올리면, 친구들이 카카오페이로 소액씩 후원해 목표 금액을 채워주는 서비스다.
+
+기술 스택은 아래와 같다:
+- **Frontend**: Flutter (Dart)
+- **Backend/DB**: Supabase (PostgreSQL + Auth + Edge Functions)
+- **결제**: PortOne V2 SDK (`portone_flutter_v2`) — 카카오페이 연동
+- **서버 로직**: Deno (Supabase Edge Functions, 현재 미배포)
+
+---
+
+## 📁 폴더 구조 & 각 파일의 역할
+
+```
+lib/
+├── features/
+│   ├── donation/                        # 후원(결제) 기능 전체
+│   │   ├── data/
+│   │   │   └── donation_repository.dart
+│   │   │       # Supabase와 직접 통신하는 유일한 클래스
+│   │   │       # donations 테이블 INSERT
+│   │   │       # projects.current_amount UPDATE
+│   │   ├── presentation/
+│   │   │   ├── donation_input_page.dart
+│   │   │   │   # 사용자 입력 UI + 전체 결제 흐름 제어 (핵심 페이지)
+│   │   │   │   # PaymentService 호출 → PaymentWebViewPage push → 결과 처리
+│   │   │   ├── payment_webview_page.dart
+│   │   │   │   # PortOne 결제창만 띄우는 순수 뷰
+│   │   │   │   # UI 로직 없음. 결제 결과만 콜백으로 반환
+│   │   │   └── donation_success_page.dart
+│   │   │       # 결제 성공 후 도달하는 최종 화면
+│   │   │       # pushAndRemoveUntil로 이전 결제 스택 전부 제거 후 이동
+│   │   └── services/
+│   │       └── payment_service.dart
+│   │           # 결제 비즈니스 로직의 핵심
+│   │           # .env에서 PORTONE_STORE_ID, PORTONE_CHANNEL_KEY 로드
+│   │           # 고유 결제 ID 생성: "pay_{timestamp}_{random4자리}"
+│   │           # PortOne SDK에 넘길 결제 데이터 객체 조립
+│   │
+│   ├── wish/                            # 위시 프로젝트 기능
+│   │   ├── data/
+│   │   │   ├── project_repository.dart  # projects 테이블 CRUD
+│   │   │   └── project_model.dart       # DB row → Dart 객체 변환 (fromJson)
+│   │   └── presentation/
+│   │       ├── home_page.dart           # 전체 위시 목록 피드
+│   │       ├── product_detail_page.dart # 위시 상세 + "후원하기" 버튼 → DonationInputPage로 이동
+│   │       └── create_wish_page.dart    # 새 위시 생성 폼
+│   │
+│   └── profile/                         # 내 정보 (진행 중)
+│       └── presentation/
+│           └── my_wish_process_page.dart
+│               # 내가 만든 위시 목록 조회
+│               # 클릭 시 product_detail_page로 이동
+│
+├── core/
+│   ├── theme.dart      # 앱 전역 색상/폰트 테마
+│   └── constants.dart  # 상수 (wishdrop:// redirect URL 등)
+│
+└── main.dart           # 앱 진입점, Supabase 초기화
+```
+
+---
+
+## 🗄 데이터베이스 스키마
+
+### 테이블 관계
+```
+users (Supabase Auth 기본 제공)
+  └─── 1:N ───► projects   (user_id로 연결, 위시를 만든 사람)
+                  └─── 1:N ───► donations  (project_id로 연결, 후원 내역)
+users ──────────────────────────► donations  (user_id로 연결, 후원한 사람)
+```
+
+### projects 테이블
+```sql
+id             int8      PK, 자동증가
+user_id        uuid      FK → auth.users.id  (위시를 만든 사용자)
+title          text      선물 이름
+target_amount  int8      목표 금액 (단위: 원)
+current_amount int8      현재 모금액. 후원 발생 시 UPDATE됨
+status         text      'active' | 'completed' | 'deleted'
+created_at     timestamp 생성일
+```
+
+### donations 테이블
+```sql
+id            int8      PK, 자동증가
+project_id    int8      FK → projects.id
+user_id       uuid      FK → auth.users.id  (후원한 사용자)
+amount        int8      후원 금액 (단위: 원)
+message       text      응원 메시지
+is_anonymous  boolean   익명 여부 (default: false)
+payment_id    text      PortOne 결제 ID. 중복 방지용 unique 키
+created_at    timestamp 후원일
+```
+
+### ⚠️ RLS (Row Level Security) 정책 — 절대 건드리지 말 것
+아래 정책은 이미 수정 완료된 상태다. 코드 수정 시 롤백하지 않도록 주의.
+
+| 테이블 | 작업 | 허용 조건 |
+|--------|------|-----------|
+| projects | SELECT | 모든 유저 (public) |
+| projects | INSERT | auth.uid() = user_id |
+| projects | UPDATE | **인증된 모든 유저** ← current_amount 증가를 위해 열려 있음 |
+| projects | DELETE | auth.uid() = user_id |
+| donations | SELECT | auth.uid() = user_id |
+| donations | INSERT | **인증된 모든 유저** ← 후원 저장을 위해 열려 있음 |
+
+---
+
+## 💳 결제 플로우 — 코드 수정 시 반드시 이 순서를 지켜야 한다
+
+```
+[1] DonationInputPage
+    사용자가 금액, 메시지, 익명 여부 입력
+
+[2] PaymentService.buildPaymentData() 호출
+    → generatePaymentId()로 "pay_{timestamp}_{random4}" 생성
+    → .env에서 storeId, channelKey 로드
+    → PortOnePayment 객체 반환
+
+[3] PaymentWebViewPage push
+    → PortOne SDK가 KakaoPay 결제창 WebView 렌더링
+
+[4] 결제 완료 시 wishdrop:// 딥링크로 앱 복귀
+    → 성공 콜백 / 실패 콜백 분기
+
+[5] 성공 시 DonationRepository 호출
+    → donations 테이블 INSERT
+    → projects.current_amount += amount UPDATE
+
+[6] DonationSuccessPage로 pushAndRemoveUntil 이동
+    (결제 중간 스택 전부 제거 — 뒤로가기로 결제창 재진입 방지)
+```
+
+### 이미 해결된 버그 (절대 롤백 금지)
+- ✅ **결제 ID 중복 문제**: `pay_{timestamp}_{random4}` 조합으로 해결됨
+- ✅ **RLS 권한 거부**: projects UPDATE, donations INSERT 정책 수정 완료
+- ✅ **Redirect URL 스킴**: `wishdrop://` 설정 완료
+
+---
+
+## 🔑 핵심 클래스 인터페이스
+
+### PaymentService
+```dart
+// lib/features/donation/services/payment_service.dart
+
+class PaymentService {
+  final String storeId;    // PORTONE_STORE_ID (.env)
+  final String channelKey; // PORTONE_CHANNEL_KEY (.env)
+
+  // "pay_{현재시각밀리초}_{4자리랜덤}" 형태로 고유 ID 생성
+  String generatePaymentId();
+
+  // PortOne SDK에 넘길 결제 요청 객체 조립
+  PortOnePayment buildPaymentData({
+    required int amount,
+    required String orderName,
+    required String customerId,
+  });
+}
+```
+
+### DonationRepository
+```dart
+// lib/features/donation/data/donation_repository.dart
+
+class DonationRepository {
+  final SupabaseClient supabase;
+
+  // donations 테이블에 후원 내역 INSERT
+  Future<void> insertDonation({
+    required int projectId,
+    required String userId,
+    required int amount,
+    required String message,
+    required bool isAnonymous,
+    required String paymentId, // 중복방지용, PortOne 결제 ID 그대로 저장
+  });
+
+  // projects.current_amount += addedAmount (원자적 UPDATE)
+  Future<void> updateCurrentAmount({
+    required int projectId,
+    required int addedAmount,
+  });
+}
+```
+
+### ProjectRepository
+```dart
+// lib/features/wish/data/project_repository.dart
+
+class ProjectRepository {
+  final SupabaseClient supabase;
+
+  Future<List<ProjectModel>> fetchProjects();             // 홈 피드용 전체 목록
+  Future<List<ProjectModel>> fetchMyProjects(String uid); // 내 위시 목록
+  Future<void> createProject({...});                      // 위시 생성
+  Future<void> updateStatus(int id, String status);       // ← 미구현, To-Do
+}
+```
+
+### ProjectModel
+```dart
+// lib/features/wish/data/project_model.dart
+
+class ProjectModel {
+  final int id;
+  final String userId;
+  final String title;
+  final int targetAmount;
+  final int currentAmount;
+  final String status; // 'active' | 'completed' | 'deleted'
+  final DateTime createdAt;
+
+  double get progressRate => currentAmount / targetAmount; // 0.0 ~ 1.0+
+  bool get isCompleted => status == 'completed';
+
+  factory ProjectModel.fromJson(Map<String, dynamic> json);
+}
+```
+
+---
+
+## 🚧 현재 미구현 / 작업 중인 기능 (To-Do)
+
+### 우선순위 높음
+1. **결제 서버 검증 (Edge Function)**
+   - 현재 클라이언트가 직접 DB를 업데이트 중 → 보안 취약
+   - 목표: PortOne WebHook → Deno Edge Function → 결제 재검증 → DB UPDATE
+   - 파일 위치 예정: `supabase/functions/verify-payment/index.ts`
+   - 배포 명령: `supabase functions deploy verify-payment`
+   - 환경변수: `PORTONE_SECRET_KEY` Supabase secrets에 등록 필요
+
+2. **프로젝트 완료 자동화**
+   - `current_amount >= target_amount` 조건 달성 시 `status = 'completed'` 자동 전환
+   - ProjectRepository.updateStatus() 구현 필요
+
+### 우선순위 중간
+3. **"완료됨" 탭** — MyWishProcessPage에 status 필터 탭 추가
+4. **후원자 목록 UI** — donations 조회, is_anonymous 시 "익명의 친구" 표시
+
+### 우선순위 낮음
+5. SNS 공유, 푸시 알림
+
+---
+
+## 📌 코드 작성 규칙 (Cursor가 새 코드를 생성할 때 반드시 따를 것)
+
+1. **UI와 로직을 분리한다.** Page는 흐름 제어만, 실제 로직은 Service/Repository에 위임한다.
+2. **Supabase 접근은 Repository 클래스에서만** 한다. Page에서 직접 `supabase.from(...)` 호출 금지.
+3. **결제 ID는 항상 PaymentService.generatePaymentId()로** 생성한다. 직접 하드코딩 금지.
+4. **RLS 정책을 바꾸는 SQL은 작성하지 않는다.** 이미 올바르게 설정되어 있다.
+5. **결제 성공 후 페이지 이동은 반드시 pushAndRemoveUntil**을 사용한다. push 단독 사용 금지.
+6. **status 값은 문자열 리터럴 대신 상수로** 정의해 사용한다. (`'active'`, `'completed'`, `'deleted'`)
+7. **익명 후원자 표시** 시 `is_anonymous == true`이면 이름 대신 "익명의 친구"를 렌더링한다.
+8. **환경변수**는 `.env` 파일에서만 읽는다. 키를 코드에 하드코딩하지 않는다.

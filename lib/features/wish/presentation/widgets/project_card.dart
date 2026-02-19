@@ -19,8 +19,9 @@ class ProjectCard extends StatelessWidget {
     // 2. 퍼센트 계산
     final int percent = (progress * 100).toInt();
 
-    // 3. D-Day 계산
-    final int dDay = project.endDate.difference(DateTime.now()).inDays;
+    // 3. D-Day 계산 (endDate nullable 대응)
+    final endDate = project.endDate ?? DateTime.now();
+    final int dDay = endDate.difference(DateTime.now()).inDays;
     final String dDayText = dDay >= 0 ? "D-$dDay" : "종료";
 
     // 4. 금액 포맷팅 (350,000원 형식)
@@ -124,7 +125,7 @@ class ProjectCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    project.description,
+                    project.description ?? '',
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppTheme.textBody,

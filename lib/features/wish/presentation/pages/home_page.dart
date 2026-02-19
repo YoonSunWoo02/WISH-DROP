@@ -17,13 +17,18 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
-  // 리포지토리 인스턴스 생성
   final ProjectRepository _repository = ProjectRepository();
 
-  // 1. 홈 탭 (실시간 반영)
+  @override
+  void initState() {
+    super.initState();
+    // 홈 로드 시 종료 체크 (end_date 만료 일괄 처리)
+    _repository.checkAndCompleteProjects();
+  }
+
+  // 1. 홈 탭 (실시간 반영, active만 노출)
   Widget _buildHomeTab() {
     return StreamBuilder<List<ProjectModel>>(
-      // 🔥 Future 대신 Stream 연결 (실시간 감지)
       stream: _repository.getProjectsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -36,7 +41,13 @@ class _HomePageState extends State<HomePage> {
           return const Center(child: Text("아직 등록된 위시가 없습니다."));
         }
 
-        final projects = snapshot.data!;
+        // 종료 체크 후 active만 노출
+        final projects = snapshot.data!
+            .where((p) => p.status == 'active')
+            .toList();
+        if (projects.isEmpty) {
+          return const Center(child: Text("아직 등록된 위시가 없습니다."));
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(20),
           itemCount: projects.length,

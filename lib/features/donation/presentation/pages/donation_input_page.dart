@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:portone_flutter_v2/portone_flutter_v2.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/wish/data/project_model.dart';
@@ -113,12 +114,31 @@ class _DonationInputPageState extends State<DonationInputPage> {
       if (result is PaymentResponse && result.code == null) {
         print("💰 결제 성공! DB 업데이트 시작");
 
-        // DB 업데이트
+        // DB 업데이트 (새로운 플로우: insertDonation + updateCurrentAmount)
         final donationRepo = DonationRepository();
-        await donationRepo.donate(
-          projectId: widget.project.id.toString(),
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null) {
+          throw Exception("로그인이 필요합니다.");
+        }
+
+        // payment_id는 PaymentService에서 생성한 uniqueId 사용
+        final paymentId = paymentRequest.paymentId;
+        final projectId = widget.project.id; // 이미 int 타입
+
+        // 1. 후원 기록 INSERT (payment_id 포함)
+        await donationRepo.insertDonation(
+          projectId: projectId,
+          userId: user.id,
           amount: _selectedAmount,
           message: _msgController.text,
+          isAnonymous: false, // UI에서 익명 옵션이 없으면 false
+          paymentId: paymentId,
+        );
+
+        // 2. 프로젝트 current_amount 증가 (트리거가 자동으로 종료 체크)
+        await donationRepo.updateCurrentAmount(
+          projectId: projectId,
+          addedAmount: _selectedAmount,
         );
 
         print("🚀 DB 업데이트 완료. 성공 페이지로 이동합니다.");

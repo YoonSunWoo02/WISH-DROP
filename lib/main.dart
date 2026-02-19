@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/app_config.dart'; // 설정 파일 import
+import 'core/app_config.dart';
 import 'core/theme.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/wish/presentation/pages/home_page.dart';
+import 'features/wish/data/project_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. 환경 설정 로드 (깔끔!)
   await AppConfig.init();
 
-  // 2. Supabase 초기화
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
     anonKey: AppConfig.supabaseAnonKey,
   );
+
+  // 앱 실행 시 end_date 만료 위시 일괄 종료
+  try {
+    final repo = ProjectRepository();
+    await repo.checkAndCompleteProjects();
+  } catch (_) {}
 
   runApp(const MyApp());
 }

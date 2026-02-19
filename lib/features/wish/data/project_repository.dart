@@ -83,13 +83,14 @@ class ProjectRepository {
             .getPublicUrl(filePath);
       }
 
-      // DB 저장 (이전과 동일)
+      // DB 저장 (status = 'active', end_date 사용)
       await _supabase.from('projects').insert({
-        'creator_id': user.id, // 🚨 'user_id'가 아니라 에러 메시지에 나온 'creator_id'로 수정!
+        'creator_id': user.id,
         'title': title,
         'description': description,
         'target_amount': targetAmount,
         'current_amount': 0,
+        'status': 'active',
         'thumbnail_url': imageUrl,
         'end_date': endDate.toIso8601String(),
         'allow_anonymous': allowAnonymous,
@@ -111,7 +112,7 @@ class ProjectRepository {
       final response = await _supabase
           .from('projects')
           .select()
-          .eq('user_id', user.id) // 내 아이디와 일치하는 것만!
+          .eq('creator_id', user.id)
           .order('created_at', ascending: false);
 
       final List<dynamic> data = response;
@@ -120,5 +121,86 @@ class ProjectRepository {
       debugPrint('내 위시 로딩 에러: $e');
       return [];
     }
+  }
+
+  // ── 종료 체크 및 status 기반 조회 (위시 자동 종료 기능) ─────────────────
+
+  /// 기간 만료/금액 달성 위시를 일괄 completed 처리
+  Future<void> checkAndCompleteProjects() async {
+    try {
+      await _supabase.rpc('check_and_complete_projects');
+    } catch (e) {
+      debugPrint('checkAndCompleteProjects 에러: $e');
+    }
+  }
+
+  /// 활성 위시만 (홈 피드 등)
+  Future<List<ProjectModel>> fetchActiveProjects() async {
+    try {
+      final res = await _supabase
+          .from('projects')
+          .select()
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
+      return (res as List).map((e) => ProjectModel.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('fetchActiveProjects 에러: $e');
+      return [];
+    }
+  }
+
+  /// ID로 단건 조회 (상세 페이지 갱신용)
+  Future<ProjectModel?> fetchProjectById(int id) async {
+    try {
+      final res = await _supabase
+          .from('projects')
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+      if (res == null) return null;
+      return ProjectModel.fromJson(res);
+    } catch (e) {
+      debugPrint('fetchProjectById 에러: $e');
+      return null;
+    }
+  }
+
+  /// 내 위시 — 진행 중만 (creator_id + status = active)
+  Future<List<ProjectModel>> fetchMyActiveProjects(String userId) async {
+    try {
+      final res = await _supabase
+          .from('projects')
+          .select()
+          .eq('creator_id', userId)
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
+      return (res as List).map((e) => ProjectModel.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('fetchMyActiveProjects 에러: $e');
+      return [];
+    }
+  }
+
+  /// 내 위시 — 종료됨만 (creator_id + status = completed)
+  Future<List<ProjectModel>> fetchMyCompletedProjects(String userId) async {
+    try {
+      final res = await _supabase
+          .from('projects')
+          .select()
+          .eq('creator_id', userId)
+          .eq('status', 'completed')
+          .order('created_at', ascending: false);
+      return (res as List).map((e) => ProjectModel.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('fetchMyCompletedProjects 에러: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateStatus(int projectId, String status) async {
+    await _supabase
+        .from('projects')
+        .update({'status': status})
+        .eq('id', projectId);
   }
 }

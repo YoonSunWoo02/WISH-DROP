@@ -4,6 +4,52 @@ import 'package:flutter/foundation.dart';
 class DonationRepository {
   final _supabase = Supabase.instance.client;
 
+  /// 결제 검증 플로우용: 후원 INSERT + payment_id (중복 방지)
+  Future<void> insertDonation({
+    required int projectId,
+    required String userId,
+    required int amount,
+    required String message,
+    required bool isAnonymous,
+    required String paymentId,
+  }) async {
+    await _supabase.from('donations').insert({
+      'project_id': projectId,
+      'user_id': userId,
+      'amount': amount,
+      'message': message,
+      'is_anonymous': isAnonymous,
+      'payment_id': paymentId,
+    });
+  }
+
+  /// current_amount 증가 (트리거가 자동으로 종료 조건 체크)
+  Future<void> updateCurrentAmount({
+    required int projectId,
+    required int addedAmount,
+  }) async {
+    try {
+      // 현재 금액 조회
+      final response = await _supabase
+          .from('projects')
+          .select('current_amount')
+          .eq('id', projectId)
+          .single();
+
+      final int currentAmount = response['current_amount'] as int;
+      final int nextAmount = currentAmount + addedAmount;
+
+      // 금액 업데이트 (트리거가 자동으로 종료 조건 체크)
+      await _supabase
+          .from('projects')
+          .update({'current_amount': nextAmount})
+          .eq('id', projectId);
+    } catch (e) {
+      debugPrint('updateCurrentAmount 에러: $e');
+      rethrow;
+    }
+  }
+
   Future<void> donate({
     required String projectId,
     required int amount,
@@ -13,14 +59,12 @@ class DonationRepository {
     if (user == null) throw Exception("로그인이 필요합니다.");
 
     try {
-      // ✅ [수정 1] 문자열 ID를 숫자로 변환 (DB가 int8 타입일 경우 필수)
       final int parsedProjectId = int.parse(projectId);
 
       print("📝 [1단계] 후원 기록 생성 중... Project ID: $parsedProjectId");
 
-      // ✅ [수정 2] 변환된 parsedProjectId 사용
       await _supabase.from('donations').insert({
-        'project_id': parsedProjectId, // projectId (X) -> parsedProjectId (O)
+        'project_id': parsedProjectId,
         'user_id': user.id,
         'amount': amount,
         'message': message,
@@ -28,7 +72,7 @@ class DonationRepository {
 
       print("🔍 [2단계] 현재 프로젝트 금액 조회 중...");
 
-      // ✅ [수정 3] 여기서도 parsedProjectId 사용
+      // 현재 금액 조회 (쿼리 형식 수정)
       final project = await _supabase
           .from('projects')
           .select('current_amount')
@@ -39,12 +83,12 @@ class DonationRepository {
         throw Exception("프로젝트를 찾을 수 없습니다. (ID: $parsedProjectId)");
       }
 
-      final int currentAmount = project['current_amount'] ?? 0;
+      final int currentAmount = project['current_amount'] as int? ?? 0;
       final int nextAmount = currentAmount + amount;
 
       print("🆙 [3단계] 금액 업데이트 중: $currentAmount -> $nextAmount");
 
-      // ✅ [수정 4] 여기서도 parsedProjectId 사용
+      // 금액 업데이트 (트리거가 자동으로 종료 조건 체크)
       final response = await _supabase
           .from('projects')
           .update({'current_amount': nextAmount})
