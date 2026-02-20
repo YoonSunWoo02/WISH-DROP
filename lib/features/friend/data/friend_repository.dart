@@ -10,9 +10,10 @@ class FriendRepository {
 
   FriendRepository({required this.supabase});
 
-  String get _myId => supabase.auth.currentUser!.id;
+  String get _myId => supabase.auth.currentUser?.id ?? '';
 
   Future<ProfileModel?> fetchMyProfile() async {
+    if (_myId.isEmpty) return null;
     final res = await supabase
         .from('profiles')
         .select()
@@ -23,6 +24,7 @@ class FriendRepository {
   }
 
   Future<List<FriendModel>> fetchFriends() async {
+    if (_myId.isEmpty) return [];
     final res = await supabase
         .from('friendships')
         .select('''
@@ -67,6 +69,7 @@ class FriendRepository {
 
   /// 받은 친구 요청 (나에게 온 요청) — 조인 없이 조회 후 프로필 따로 불러오기
   Future<List<FriendRequestModel>> fetchPendingRequests() async {
+    if (_myId.isEmpty) return [];
     final res = await supabase
         .from('friendships')
         .select('id, requester_id, created_at')
@@ -99,6 +102,7 @@ class FriendRepository {
 
   /// 보낸 친구 요청 (대기 중 — 상대가 수락하면 친구됨)
   Future<List<SentRequestModel>> fetchSentPendingRequests() async {
+    if (_myId.isEmpty) return [];
     final res = await supabase
         .from('friendships')
         .select('id, receiver_id, created_at')
@@ -138,6 +142,7 @@ class FriendRepository {
   }
 
   Future<int> fetchPendingRequestCount() async {
+    if (_myId.isEmpty) return 0;
     final List<dynamic> res = await supabase
         .from('friendships')
         .select('id')
@@ -212,6 +217,7 @@ class FriendRepository {
   }
 
   Future<String> getOrCreateInviteToken() async {
+    if (_myId.isEmpty) throw Exception('로그인이 필요합니다.');
     debugPrint('[FriendRepository] getOrCreateInviteToken start');
     final existing = await supabase
         .from('invite_tokens')

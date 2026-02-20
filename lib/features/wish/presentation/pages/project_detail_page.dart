@@ -67,23 +67,55 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
 
     if (confirmed != true) return;
 
-    try {
-      await Supabase.instance.client
-          .from('projects')
-          .delete()
-          .eq('id', _project.id);
+    Future<void> doDelete() => Supabase.instance.client
+        .from('projects')
+        .delete()
+        .eq('id', _project.id);
 
+    try {
+      await doDelete();
       if (context.mounted) {
-        Navigator.pop(context); // 상세페이지 닫기
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("위시리스트가 삭제되었습니다.")));
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("위시리스트가 삭제되었습니다.")),
+        );
       }
     } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      final isNetworkError = errStr.contains('connection') ||
+          errStr.contains('abort') ||
+          errStr.contains('socket');
+      if (!isNetworkError) {
+        if (context.mounted) {
+          final msg = errStr.contains('foreign key')
+              ? '후원 내역이 있어 삭제할 수 없습니다. (관리자: donations CASCADE 설정 필요)'
+              : '삭제 실패: $e';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
+        return;
+      }
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("삭제 실패: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("연결이 끊어졌을 수 있어요. 다시 시도합니다…")),
+        );
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      if (!context.mounted) return;
+      try {
+        await doDelete();
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("위시리스트가 삭제되었습니다.")),
+          );
+        }
+      } catch (e2) {
+        if (context.mounted) {
+          final msg = e2.toString().toLowerCase().contains('foreign key')
+              ? '후원 내역이 있어 삭제할 수 없습니다. (관리자: donations CASCADE 설정 필요)'
+              : '삭제 실패: $e2';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
       }
     }
   }

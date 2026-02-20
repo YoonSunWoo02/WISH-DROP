@@ -34,8 +34,12 @@ class DonationRepository {
           .from('projects')
           .select('current_amount')
           .eq('id', projectId)
-          .single();
+          .maybeSingle();
 
+      if (response == null) {
+        debugPrint('updateCurrentAmount: project not found id=$projectId');
+        throw Exception('프로젝트를 찾을 수 없습니다.');
+      }
       final int currentAmount = response['current_amount'] as int;
       final int nextAmount = currentAmount + addedAmount;
 
@@ -59,7 +63,10 @@ class DonationRepository {
     if (user == null) throw Exception("로그인이 필요합니다.");
 
     try {
-      final int parsedProjectId = int.parse(projectId);
+      final parsedProjectId = int.tryParse(projectId);
+      if (parsedProjectId == null) {
+        throw Exception('잘못된 프로젝트 ID입니다.');
+      }
 
       print("📝 [1단계] 후원 기록 생성 중... Project ID: $parsedProjectId");
 
@@ -124,6 +131,50 @@ class DonationRepository {
     } catch (e) {
       debugPrint('Fetch Donation Error: $e');
       return [];
+    }
+  }
+
+  /// 내 후원 내역 + 프로젝트 생성자(친구) 닉네임·프사 (월별 리스트용)
+  Future<List<Map<String, dynamic>>> getMyDonationsWithCreator() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select('*, projects(title, creator_id)')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+
+      final list = List<Map<String, dynamic>>.from(response);
+      final creatorIds = <String>{};
+      for (final d in list) {
+        final p = d['projects'] as Map<String, dynamic>?;
+        final id = p?['creator_id'] as String?;
+        if (id != null && id.isNotEmpty) creatorIds.add(id);
+      }
+
+      if (creatorIds.isEmpty) return list;
+
+      final profilesRes = await _supabase
+          .from('profiles')
+          .select('id, nickname, avatar_url')
+          .inFilter('id', creatorIds.toList());
+      final profiles = { for (final x in profilesRes as List) x['id'] as String: x as Map<String, dynamic> };
+
+      for (final d in list) {
+        final p = d['projects'] as Map<String, dynamic>?;
+        if (p == null) continue;
+        final creatorId = p['creator_id'] as String?;
+        final profile = creatorId != null ? profiles[creatorId] : null;
+        p['creator_nickname'] = profile?['nickname'] as String?;
+        p['creator_avatar_url'] = profile?['avatar_url'] as String?;
+      }
+
+      return list;
+    } catch (e) {
+      debugPrint('getMyDonationsWithCreator Error: $e');
+      return getMyDonations();
     }
   }
 }

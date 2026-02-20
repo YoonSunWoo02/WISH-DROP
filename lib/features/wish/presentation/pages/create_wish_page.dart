@@ -95,12 +95,21 @@ class _CreateWishPageState extends State<CreateWishPage> {
   }
 
   Future<void> _submitWish() async {
+    final amountText = _amountController.text.replaceAll(',', '').trim();
+    final targetAmount = int.tryParse(amountText);
+    if (targetAmount == null || targetAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('목표 금액을 숫자로 입력해주세요. (1원 이상)')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       await _repository.createWish(
         title: _titleController.text,
         description: _descController.text,
-        targetAmount: int.parse(_amountController.text),
+        targetAmount: targetAmount,
         endDate: _endDate,
         imageFile: _imageFile, // XFile 타입인지 확인
         allowAnonymous: _allowAnonymous,

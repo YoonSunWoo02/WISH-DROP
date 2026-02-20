@@ -1,8 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
   static Future<void> init() async {
-    await dotenv.load(fileName: ".env");
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      debugPrint('AppConfig: .env 로드 실패 - $e');
+      rethrow;
+    }
   }
 
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';

@@ -10,8 +10,8 @@ class PaymentService {
     required String projectId,
     String? message,
   }) {
-    final storeId = dotenv.env['STORE_ID'] ?? '';
-    final channelKey = dotenv.env['CACAO_CHANNEL_KEY'] ?? '';
+    final storeId = dotenv.env['STORE_ID'] ?? dotenv.env['PORTONE_STORE_ID'] ?? '';
+    final channelKey = dotenv.env['CACAO_CHANNEL_KEY'] ?? dotenv.env['PORTONE_CHANNEL_KEY'] ?? '';
 
     if (storeId.isEmpty || channelKey.isEmpty) return null;
 

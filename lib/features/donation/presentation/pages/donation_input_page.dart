@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/wish/data/project_model.dart';
 import 'package:wish_drop/features/donation/data/donation_repository.dart';
-import 'package:wish_drop/features/wish/presentation/pages/home_page.dart';
 import 'package:wish_drop/features/donation/presentation/pages/donation_success_page.dart';
 
 // ✅ 분리된 서비스와 페이지 임포트 (경로 확인해주세요!)
@@ -145,11 +144,14 @@ class _DonationInputPageState extends State<DonationInputPage> {
 
         if (!mounted) return;
 
-        // ✅ [핵심] 성공 화면으로 강제 이동 (뒤로가기 방지를 위해 pushAndRemoveUntil 사용)
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const DonationSuccessPage()),
-          (route) => false, // 모든 이전 페이지 스택 제거 (홈으로 가고 싶다면 조건 변경)
-        );
+        // 다음 프레임에서 이동 (async 직후 context가 안정되도록)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const DonationSuccessPage()),
+            (r) => false,
+          );
+        });
       } else {
         // 결제 실패 또는 취소
         String failMsg = "결제가 취소되었습니다.";

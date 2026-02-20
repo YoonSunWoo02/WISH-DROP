@@ -44,8 +44,8 @@ class MyApp extends StatelessWidget {
           : const HomePage(),
       routes: {
         '/friend-invite': (context) {
-          final token =
-              ModalRoute.of(context)!.settings.arguments as String? ?? '';
+          final args = ModalRoute.of(context)?.settings.arguments;
+          final token = args is String ? args : '';
           return FriendInvitePage(token: token);
         },
       },
