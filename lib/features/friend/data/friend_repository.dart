@@ -25,43 +25,56 @@ class FriendRepository {
 
   Future<List<FriendModel>> fetchFriends() async {
     if (_myId.isEmpty) return [];
-    final res = await supabase
+
+    final rows = await supabase
         .from('friendships')
-        .select('''
-          id,
-          requester_id,
-          receiver_id
-        ''')
+        .select('id, requester_id, receiver_id')
         .eq('status', 'accepted')
         .or('requester_id.eq.$_myId,receiver_id.eq.$_myId');
 
+    if ((rows as List).isEmpty) return [];
+
+    final friendIds = rows.map<String>((row) {
+      return row['requester_id'] == _myId
+          ? row['receiver_id'] as String
+          : row['requester_id'] as String;
+    }).toList();
+
+    final profilesRes = await supabase
+        .from('profiles')
+        .select('id, nickname, friend_code, avatar_url')
+        .inFilter('id', friendIds);
+    final profileMap = {
+      for (final p in profilesRes as List) p['id'] as String: p,
+    };
+
+    final wishesRes = await supabase
+        .from('projects')
+        .select('id, creator_id')
+        .inFilter('creator_id', friendIds)
+        .eq('status', 'active');
+    final wishCountMap = <String, int>{};
+    for (final w in wishesRes as List) {
+      final cid = w['creator_id'] as String;
+      wishCountMap[cid] = (wishCountMap[cid] ?? 0) + 1;
+    }
+
     final friends = <FriendModel>[];
-    for (final row in res as List) {
-      final isRequester = row['requester_id'] == _myId;
-      final friendId = isRequester
+    for (final row in rows) {
+      final friendId = row['requester_id'] == _myId
           ? row['receiver_id'] as String
           : row['requester_id'] as String;
 
-      final profileRes = await supabase
-          .from('profiles')
-          .select()
-          .eq('id', friendId)
-          .maybeSingle();
-      if (profileRes == null) continue;
-
-      final List<dynamic> wishCountRes = await supabase
-          .from('projects')
-          .select('id')
-          .eq('creator_id', friendId)
-          .eq('status', 'active');
+      final profile = profileMap[friendId];
+      if (profile == null) continue;
 
       friends.add(FriendModel(
         friendshipId: row['id'] as int,
         friendId: friendId,
-        nickname: profileRes['nickname'] as String,
-        friendCode: profileRes['friend_code'] as String,
-        avatarUrl: profileRes['avatar_url'] as String?,
-        activeWishCount: wishCountRes.length,
+        nickname: profile['nickname'] as String,
+        friendCode: profile['friend_code'] as String,
+        avatarUrl: profile['avatar_url'] as String?,
+        activeWishCount: wishCountMap[friendId] ?? 0,
       ));
     }
     return friends;

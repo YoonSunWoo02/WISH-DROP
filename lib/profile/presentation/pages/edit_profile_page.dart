@@ -1,13 +1,13 @@
 // lib/profile/presentation/pages/edit_profile_page.dart
 
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme.dart';
 
 class EditProfilePage extends StatefulWidget {
   final String currentNickname;
-  /// 현재 친구 코드 (예: 채연#8291). 닉네임 변경 시 뒤 4자리는 유지, 중복일 때만 재발급.
   final String? currentFriendCode;
   final String? currentAvatarUrl;
 
@@ -43,43 +43,38 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool get _hasChanged =>
       _nicknameController.text.trim() != widget.currentNickname;
 
-  /// 기존 친구 코드에서 4자리 숫자 부분만 추출 (예: "채연#8291" -> "8291"). 없거나 형식 다르면 null.
-  String? _extractCodeSuffix(String? friendCode) {
-    if (friendCode == null || friendCode.isEmpty) return null;
-    final idx = friendCode.lastIndexOf('#');
-    if (idx < 0) return null;
-    final suffix = friendCode.substring(idx + 1).trim();
-    if (suffix.length != 4 || int.tryParse(suffix) == null) return null;
-    return suffix;
-  }
-
-  /// 다른 유저가 이미 이 friend_code를 쓰는지 확인 (본인 제외)
-  Future<bool> _isFriendCodeTaken(String friendCode, String myId) async {
-    final res = await Supabase.instance.client
-        .from('profiles')
-        .select('id')
-        .eq('friend_code', friendCode)
-        .neq('id', myId)
-        .maybeSingle();
-    return res != null;
-  }
-
-  /// 사용할 friend_code 결정: 기존 4자리 유지, 중복 시에만 새 4자리 발급
-  Future<String> _resolveFriendCode(String nickname, String userId) async {
-    final existingSuffix = _extractCodeSuffix(widget.currentFriendCode);
-
-    if (existingSuffix != null) {
-      final candidate = '$nickname#$existingSuffix';
-      final taken = await _isFriendCodeTaken(candidate, userId);
-      if (!taken) return candidate;
+  /// RPC 없을 때 폴백: 클라이언트에서 friend_code 결정 후 profiles UPDATE
+  Future<String> _resolveFriendCodeFallback(String nickname, String userId) async {
+    String? suffix;
+    final code = widget.currentFriendCode;
+    if (code != null && code.contains('#')) {
+      final part = code.split('#').last.trim();
+      if (part.length >= 4 && part.length <= 8 && int.tryParse(part) != null) {
+        suffix = part;
+      }
     }
-
+    if (suffix != null) {
+      final candidate = '$nickname#$suffix';
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select('id')
+          .eq('friend_code', candidate)
+          .neq('id', userId)
+          .maybeSingle();
+      if (res == null) return candidate;
+    }
     final rnd = Random();
-    for (var i = 0; i < 20; i++) {
-      final code = (1000 + rnd.nextInt(9000)).toString();
-      final candidate = '$nickname#$code';
-      final taken = await _isFriendCodeTaken(candidate, userId);
-      if (!taken) return candidate;
+    for (var i = 0; i < 30; i++) {
+      final len = 4 + (i ~/ 15); // 4자리 후 15번 실패 시 5자리
+      final num = (len == 4) ? 1000 + rnd.nextInt(9000) : 10000 + rnd.nextInt(90000);
+      final newCode = num.toString().padLeft(len, '0');
+      final candidate = '$nickname#$newCode';
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select('id')
+          .eq('friend_code', candidate)
+          .maybeSingle();
+      if (res == null) return candidate;
     }
     return '$nickname#${1000 + rnd.nextInt(9000)}';
   }
@@ -111,21 +106,40 @@ class _EditProfilePageState extends State<EditProfilePage> {
         setState(() => _errorText = '로그인 세션이 만료됐어요. 다시 로그인해주세요.');
         return;
       }
-      final userId = user.id;
-      final friendCode = await _resolveFriendCode(nickname, userId);
 
-      await Supabase.instance.client
-          .from('profiles')
-          .update({'nickname': nickname, 'friend_code': friendCode})
-          .eq('id', userId);
+      String? newCode;
+
+      try {
+        // RPC 한 번 호출 (Supabase에 update_nickname 함수가 있을 때)
+        newCode = await Supabase.instance.client
+            .rpc('update_nickname', params: {'new_nickname': nickname}) as String?;
+      } catch (rpcError) {
+        if (kDebugMode) {
+          debugPrint('프로필 수정 RPC 실패(폴백 시도): $rpcError');
+        }
+        // RPC 없거나 실패 시 → 클라이언트에서 friend_code 계산 후 직접 UPDATE
+        final friendCode = await _resolveFriendCodeFallback(nickname, user.id);
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'nickname': nickname, 'friend_code': friendCode})
+            .eq('id', user.id);
+        newCode = friendCode;
+      }
 
       if (mounted) {
+        final message = newCode != null && newCode.isNotEmpty
+            ? '프로필이 수정됐어요! 새 코드: $newCode'
+            : '프로필이 수정됐어요!';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('프로필이 수정됐어요!')),
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 3),
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
+      if (kDebugMode) debugPrint('프로필 수정 실패: $e');
       setState(() => _errorText = '저장에 실패했어요. 다시 시도해주세요.');
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -134,6 +148,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final codeSuffix = widget.currentFriendCode != null &&
+            widget.currentFriendCode!.contains('#')
+        ? widget.currentFriendCode!.split('#').last
+        : null;
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -157,7 +176,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 아바타 (현재는 표시만, 수정 기능은 추후)
             Center(
               child: Stack(
                 children: [
@@ -165,7 +183,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     radius: 48,
                     backgroundColor: AppTheme.primary.withOpacity(0.1),
                     backgroundImage: widget.currentAvatarUrl != null
-                        ? NetworkImage(widget.currentAvatarUrl!) : null,
+                        ? NetworkImage(widget.currentAvatarUrl!)
+                        : null,
                     child: widget.currentAvatarUrl == null
                         ? Text(
                             widget.currentNickname.isNotEmpty
@@ -178,17 +197,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           )
                         : null,
                   ),
-                  // TODO: 프로필 이미지 변경 기능 추가 시 아래 버튼 활성화
-                  // Positioned(
-                  //   bottom: 0, right: 0,
-                  //   child: _EditAvatarButton(),
-                  // ),
                 ],
               ),
             ),
             const SizedBox(height: 32),
 
-            // 닉네임 입력
             const Text(
               '닉네임',
               style: TextStyle(
@@ -207,22 +220,64 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
               onChanged: (_) => setState(() => _errorText = null),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             const Text(
-              '2~12글자, 친구 코드에 반영돼요',
+              '2~12글자 • 변경 시 친구 코드 숫자는 최대한 유지돼요',
               style: TextStyle(fontSize: 12, color: AppTheme.textBody),
             ),
 
+            if (widget.currentFriendCode != null &&
+                widget.currentFriendCode!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.borderColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '현재 친구 코드',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: AppTheme.textBody,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.currentFriendCode!,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textHeading),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      codeSuffix != null
+                          ? '닉네임 변경 후: ${_nicknameController.text.trim().isEmpty ? widget.currentNickname : _nicknameController.text.trim()}#$codeSuffix (중복 없으면 유지)'
+                          : '닉네임 변경 후 새 코드가 발급돼요',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppTheme.textBody),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 32),
 
-            // 저장 버튼
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: (_hasChanged && !_isSaving) ? _save : null,
                 child: _isSaving
                     ? const SizedBox(
-                        width: 20, height: 20,
+                        width: 20,
+                        height: 20,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
                     : const Text('저장하기'),

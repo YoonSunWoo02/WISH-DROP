@@ -66,7 +66,7 @@ class _SignUpPageState extends State<SignUpPage> {
       final response = await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
-        data: {'name': _nameController.text.trim()},
+        data: {'nickname': _nameController.text.trim()},
       );
 
       if (mounted && response.user != null) {
