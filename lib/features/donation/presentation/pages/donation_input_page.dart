@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:portone_flutter_v2/portone_flutter_v2.dart';
@@ -22,7 +23,12 @@ class DonationInputPage extends StatefulWidget {
 
 class _DonationInputPageState extends State<DonationInputPage> {
   int _selectedAmount = 10000;
-  bool _isUpdating = false; // 로딩 상태
+  bool _isUpdating = false;
+  bool _donatedToday = false;       // 이 위시에 24시간 이내 후원했는지
+  bool _loadingToday = true;       // 이 위시 마지막 후원 시각 조회 중
+  DateTime? _nextDonationAllowedAt; // 다음 후원 가능 시각 (로컬 자정)
+  Duration _remaining = Duration.zero;
+  Timer? _countdownTimer;
 
   final TextEditingController _amountController = TextEditingController(
     text: "10,000",
@@ -38,10 +44,66 @@ class _DonationInputPageState extends State<DonationInputPage> {
   void initState() {
     super.initState();
     _amountController.addListener(_onTextChanged);
+    _checkDonatedToday();
+  }
+
+  static const Duration _donationCooldown = Duration(hours: 24);
+
+  /// 이 위시에 마지막 후원 후 24시간이 지났는지 확인. 안 지났으면 다음 가능 시각부터 타이머 시작
+  Future<void> _checkDonatedToday() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _loadingToday = false);
+      return;
+    }
+    final repo = DonationRepository();
+    final lastAt = await repo.getLastDonationAtForProject(user.id, widget.project.id);
+    if (!mounted) return;
+    final now = DateTime.now();
+    if (lastAt != null) {
+      final lastLocal = lastAt.toLocal();
+      final nextAllowed = lastLocal.add(_donationCooldown);
+      if (now.isBefore(nextAllowed)) {
+        _countdownTimer?.cancel();
+        _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted) return;
+          final remaining = nextAllowed.difference(DateTime.now());
+          if (remaining.isNegative || remaining == Duration.zero) {
+            _countdownTimer?.cancel();
+            setState(() {
+              _donatedToday = false;
+              _nextDonationAllowedAt = null;
+              _remaining = Duration.zero;
+            });
+          } else {
+            setState(() => _remaining = remaining);
+          }
+        });
+        setState(() {
+          _donatedToday = true;
+          _nextDonationAllowedAt = nextAllowed;
+          _remaining = nextAllowed.difference(now);
+          _loadingToday = false;
+        });
+        return;
+      }
+    }
+    setState(() => _loadingToday = false);
+  }
+
+  String get _remainingText {
+    if (_remaining.isNegative || _remaining == Duration.zero) return '';
+    final h = _remaining.inHours;
+    final m = _remaining.inMinutes.remainder(60);
+    final s = _remaining.inSeconds.remainder(60);
+    if (h > 0) return '${h}시간 ${m}분 ${s}초';
+    if (m > 0) return '${m}분 ${s}초';
+    return '${s}초';
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _amountController.removeListener(_onTextChanged);
     _amountController.dispose();
     _msgController.dispose();
@@ -80,7 +142,18 @@ class _DonationInputPageState extends State<DonationInputPage> {
     }
     if (_selectedAmount <= 0) return;
 
-    // 2. 로딩 시작 (버튼 비활성화)
+    // 2. 이 위시에 24시간 이내 후원했으면 막기
+    if (_donatedToday) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('이 위시에는 방금 전 후원하셨어요. 24시간 후에 다시 후원할 수 있어요 🎁'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // 3. 로딩 시작 (버튼 비활성화)
     setState(() => _isUpdating = true);
 
     try {
@@ -122,41 +195,59 @@ class _DonationInputPageState extends State<DonationInputPage> {
 
         // payment_id는 PaymentService에서 생성한 uniqueId 사용
         final paymentId = paymentRequest.paymentId;
-        final projectId = widget.project.id; // 이미 int 타입
+        final projectId = widget.project.id;
 
-        // 1. 후원 기록 INSERT (payment_id 포함)
-        await donationRepo.insertDonation(
+        // 1. 후원 기록 INSERT (결과에 따라 분기)
+        final insertResult = await donationRepo.insertDonationIfNew(
           projectId: projectId,
           userId: user.id,
           amount: _selectedAmount,
           message: _msgController.text,
-          isAnonymous: false, // UI에서 익명 옵션이 없으면 false
+          isAnonymous: false,
           paymentId: paymentId,
         );
 
-        // 2. 프로젝트 current_amount 증가 (트리거가 자동으로 종료 체크)
-        await donationRepo.updateCurrentAmount(
-          projectId: projectId,
-          addedAmount: _selectedAmount,
-        );
+        if (insertResult == DonationInsertResult.alreadyDonated) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('이 위시에는 방금 전 후원하셨어요. 24시간 후에 다시 후원할 수 있어요 🎁'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
 
-        print("🚀 DB 업데이트 완료. 성공 페이지로 이동합니다.");
+        // 2. 새로 삽입된 경우에만 current_amount 증가 (같은 영수증 중복 시 이미 반영됨)
+        if (insertResult == DonationInsertResult.inserted) {
+          await donationRepo.updateCurrentAmount(
+            projectId: projectId,
+            addedAmount: _selectedAmount,
+          );
+        }
+
+        print("🚀 DB 처리 완료. 성공 페이지로 이동합니다.");
 
         if (!mounted) return;
 
-        // 다음 프레임에서 이동 (async 직후 context가 안정되도록)
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const DonationSuccessPage()),
+            MaterialPageRoute(
+              builder: (_) => DonationSuccessPage(
+                donatedProjectId: widget.project.id,
+              ),
+            ),
             (r) => false,
           );
         });
       } else {
         // 결제 실패 또는 취소
         String failMsg = "결제가 취소되었습니다.";
-        if (result is PaymentResponse && result.message != null) {
-          failMsg = result.message!;
+        final payResult = result;
+        if (payResult is PaymentResponse && payResult.message != null) {
+          failMsg = payResult.message!;
         }
         print("⚠️ 결제 실패: $failMsg");
 
@@ -423,6 +514,11 @@ class _DonationInputPageState extends State<DonationInputPage> {
 
   // 6. 하단 후원하기 버튼
   Widget _buildBottomButton() {
+    final canTap = _selectedAmount > 0 &&
+        !_isUpdating &&
+        !_donatedToday &&
+        !_loadingToday;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(
@@ -430,26 +526,77 @@ class _DonationInputPageState extends State<DonationInputPage> {
         border: Border(top: BorderSide(color: AppTheme.borderColor)),
       ),
       child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _selectedAmount > 0 && !_isUpdating
-                ? _onDonatePressed
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_donatedToday) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '이 위시에는 방금 전 후원하셨어요.\n24시간 후에 다시 후원할 수 있어요 🎁',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.primary.withOpacity(0.95),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
-              elevation: 0,
+              if (_remainingText.isNotEmpty && _nextDonationAllowedAt != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    children: [
+                      Text(
+                        '다음 후원 가능까지 $_remainingText',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${DateFormat('M월 d일 HH:mm').format(_nextDonationAllowedAt!)}부터 가능',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: canTap ? _onDonatePressed : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: _loadingToday
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        "${currencyFormat.format(_selectedAmount)}원 후원하기",
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+              ),
             ),
-            child: Text(
-              "${currencyFormat.format(_selectedAmount)}원 후원하기",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
+          ],
         ),
       ),
     );

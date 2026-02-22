@@ -15,16 +15,36 @@ class ProjectDetailPage extends StatefulWidget {
   State<ProjectDetailPage> createState() => _ProjectDetailPageState();
 }
 
-class _ProjectDetailPageState extends State<ProjectDetailPage> {
+class _ProjectDetailPageState extends State<ProjectDetailPage>
+    with SingleTickerProviderStateMixin {
   late ProjectModel _project;
   final _repo = ProjectRepository();
   bool _isChecking = true;
+  late AnimationController _gaugeController;
+  late Animation<double> _gaugeAnimation;
 
   @override
   void initState() {
     super.initState();
     _project = widget.project;
+    final targetProgress = _project.progressRate.clamp(0.0, 1.0);
+    _gaugeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _gaugeAnimation = Tween<double>(begin: 0, end: targetProgress).animate(
+      CurvedAnimation(parent: _gaugeController, curve: Curves.easeOut),
+    );
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _gaugeController.forward();
+    });
     _checkAndRefresh();
+  }
+
+  @override
+  void dispose() {
+    _gaugeController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAndRefresh() async {
@@ -126,7 +146,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final currentUser = Supabase.instance.client.auth.currentUser;
     final bool isMyProject = _project.creatorId == currentUser?.id;
     final bool isCompleted = _project.isCompleted;
-    final double progress = _project.progressRate;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -233,7 +252,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               ),
             ),
 
-            // 3. 원형 게이지 & 통계
+            // 3. 원형 게이지 & 통계 (0% → 실제% 애니메이션)
             Container(
               margin: const EdgeInsets.all(24),
               padding: const EdgeInsets.all(32),
@@ -244,36 +263,42 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               ),
               child: Column(
                 children: [
-                  SizedBox(
-                    width: 160,
-                    height: 160,
-                    child: CustomPaint(
-                      painter: CircularGaugePainter(progress: progress),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "${(progress * 100).toInt()}%",
-                              style: const TextStyle(
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textHeading,
-                              ),
+                  AnimatedBuilder(
+                    animation: _gaugeAnimation,
+                    builder: (context, child) {
+                      final animatedProgress = _gaugeAnimation.value;
+                      return SizedBox(
+                        width: 160,
+                        height: 160,
+                        child: CustomPaint(
+                          painter: CircularGaugePainter(progress: animatedProgress),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  "${(animatedProgress * 100).toInt()}%",
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.textHeading,
+                                  ),
+                                ),
+                                const Text(
+                                  "달성 완료",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const Text(
-                              "달성 완료",
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 32),
                   const Divider(height: 1),

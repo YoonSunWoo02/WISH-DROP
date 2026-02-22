@@ -43,7 +43,8 @@ class ProjectRepository {
   }
 
   // 2. 🚀 [수정됨] 새로운 위시 생성 및 이미지 업로드
-  Future<void> createWish({
+  /// 생성된 프로젝트 id 반환 (홈에서 새 카드 애니메이션용)
+  Future<int> createWish({
     required String title,
     required String description,
     required int targetAmount,
@@ -83,8 +84,8 @@ class ProjectRepository {
             .getPublicUrl(filePath);
       }
 
-      // DB 저장 (status = 'active', end_date 사용)
-      await _supabase.from('projects').insert({
+      // DB 저장 (status = 'active', end_date 사용) — 생성된 id 반환 (홈 카드 등장 애니메이션용)
+      final res = await _supabase.from('projects').insert({
         'creator_id': user.id,
         'title': title,
         'description': description,
@@ -95,12 +96,13 @@ class ProjectRepository {
         'end_date': endDate.toIso8601String(),
         'allow_anonymous': allowAnonymous,
         'allow_messages': allowMessages,
-      });
+      }).select('id').single();
 
       debugPrint("위시 생성 성공!");
+      return (res['id'] as num).toInt();
     } catch (e) {
       debugPrint('위시 생성 에러: $e');
-      throw Exception('위시 생성 실패: $e');
+      rethrow;
     }
   }
 

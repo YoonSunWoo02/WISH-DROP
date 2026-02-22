@@ -1,34 +1,105 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // 금액 포맷팅을 위해 필요
+import 'package:intl/intl.dart';
 import '../../data/project_model.dart';
 import '../../../../core/theme.dart';
 
-class ProjectCard extends StatelessWidget {
+class ProjectCard extends StatefulWidget {
   final ProjectModel project;
   final VoidCallback onTap;
 
-  const ProjectCard({super.key, required this.project, required this.onTap});
+  /// true이면 게이지바가 0%에서 실제 진행률까지 애니메이션
+  final bool animate;
+
+  /// 애니메이션 완료 콜백 — 완료 후 상위에서 animate 플래그 초기화용
+  final VoidCallback? onAnimationEnd;
+
+  const ProjectCard({
+    super.key,
+    required this.project,
+    required this.onTap,
+    this.animate = false,
+    this.onAnimationEnd,
+  });
+
+  @override
+  State<ProjectCard> createState() => _ProjectCardState();
+}
+
+class _ProjectCardState extends State<ProjectCard>
+    with TickerProviderStateMixin {
+  late AnimationController _controller;
+  late AnimationController _entranceController;
+  late Animation<double> _progressAnimation;
+  late Animation<double> _entranceOpacity;
+  late Animation<Offset> _entranceOffset;
+
+  double get _targetProgress => widget.project.targetAmount > 0
+      ? (widget.project.currentAmount / widget.project.targetAmount)
+          .clamp(0.0, 1.0)
+      : 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _entranceOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _entranceController, curve: Curves.easeOut),
+    );
+    _entranceOffset = Tween<Offset>(
+      begin: const Offset(0, 24),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _entranceController,
+      curve: Curves.easeOut,
+    ));
+
+    if (widget.animate) {
+      _progressAnimation = Tween<double>(
+        begin: 0.0,
+        end: _targetProgress,
+      ).animate(CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut,
+      ));
+      _entranceController.forward();
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _controller.forward().then((_) {
+            widget.onAnimationEnd?.call();
+          });
+        }
+      });
+    } else {
+      _progressAnimation = AlwaysStoppedAnimation(_targetProgress);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _entranceController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 1. 진행률 계산 (0.0 ~ 1.0 사이 값)
-    final double progress = project.targetAmount > 0
-        ? (project.currentAmount / project.targetAmount).clamp(0.0, 1.0)
-        : 0.0;
-
-    // 2. 퍼센트 계산
-    final int percent = (progress * 100).toInt();
-
-    // 3. D-Day 계산 (endDate nullable 대응)
-    final endDate = project.endDate ?? DateTime.now();
+    final endDate = widget.project.endDate ?? DateTime.now();
     final int dDay = endDate.difference(DateTime.now()).inDays;
     final String dDayText = dDay >= 0 ? "D-$dDay" : "종료";
 
-    // 4. 금액 포맷팅 (350,000원 형식)
     final formatter = NumberFormat('#,###');
 
-    return GestureDetector(
-      onTap: onTap,
+    Widget card = GestureDetector(
+      onTap: widget.onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
@@ -45,21 +116,19 @@ class ProjectCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 썸네일 이미지 영역
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(20),
               ),
               child: Stack(
                 children: [
-                  project.thumbnailUrl != null &&
-                          project.thumbnailUrl!.isNotEmpty
+                  widget.project.thumbnailUrl != null &&
+                          widget.project.thumbnailUrl!.isNotEmpty
                       ? Image.network(
-                          project.thumbnailUrl!,
+                          widget.project.thumbnailUrl!,
                           height: 180,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          // 이미지 로딩 실패 시 처리
                           errorBuilder: (context, error, stackTrace) =>
                               Container(
                                 height: 180,
@@ -81,7 +150,6 @@ class ProjectCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                  // 🔥 실제 데이터 기반 D-Day 배지
                   Positioned(
                     top: 16,
                     right: 16,
@@ -107,14 +175,13 @@ class ProjectCard extends StatelessWidget {
                 ],
               ),
             ),
-            // 텍스트 정보 영역
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    project.title,
+                    widget.project.title,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -125,7 +192,7 @@ class ProjectCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    project.description ?? '',
+                    widget.project.description ?? '',
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppTheme.textBody,
@@ -134,39 +201,51 @@ class ProjectCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 16),
-                  // 🔥 실제 진행률 바
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: Colors.grey[100],
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppTheme.primary,
-                      ),
-                      minHeight: 6,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "$percent% 달성", // 🔥 실제 퍼센트
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        "${formatter.format(project.targetAmount)}원", // 🔥 실제 포맷팅된 목표 금액
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textHeading,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                  AnimatedBuilder(
+                    animation: _progressAnimation,
+                    builder: (context, child) {
+                      final animatedProgress = _progressAnimation.value;
+                      final animatedPercent = (animatedProgress * 100).toInt();
+
+                      return Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: animatedProgress,
+                              backgroundColor: Colors.grey[100],
+                              valueColor:
+                                  const AlwaysStoppedAnimation<Color>(
+                                AppTheme.primary,
+                              ),
+                              minHeight: 6,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "$animatedPercent% 달성",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                "${formatter.format(widget.project.targetAmount)}원",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textHeading,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -175,5 +254,21 @@ class ProjectCard extends StatelessWidget {
         ),
       ),
     );
+
+    if (widget.animate) {
+      return AnimatedBuilder(
+        animation: _entranceController,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: _entranceOffset.value,
+            child: Opacity(
+              opacity: _entranceOpacity.value,
+              child: card,
+            ),
+          );
+        },
+      );
+    }
+    return card;
   }
 }

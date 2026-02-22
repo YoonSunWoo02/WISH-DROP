@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../core/search_history_helper.dart';
+import '../../../../core/stagger_fade_in.dart';
 import '../../../features/wish/data/project_repository.dart';
 import '../../../features/wish/data/project_model.dart';
 import '../../../features/wish/presentation/pages/project_detail_page.dart';
@@ -275,6 +276,7 @@ class _MyWishListPageState extends State<MyWishListPage> {
     final grouped = _groupByMonth();
     final keys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     final list = <Widget>[];
+    int cardIndex = 0;
 
     for (final key in keys) {
       final items = grouped[key]!;
@@ -297,17 +299,21 @@ class _MyWishListPageState extends State<MyWishListPage> {
       );
 
       for (final project in items) {
+        final idx = cardIndex++;
         list.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _WishCard(
-              project: project,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ProjectDetailPage(project: project),
-                ),
-              ).then((_) => _loadAll()),
+          StaggerFadeIn(
+            index: idx,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _WishCard(
+                project: project,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProjectDetailPage(project: project),
+                  ),
+                ).then((_) => _loadAll()),
+              ),
             ),
           ),
         );

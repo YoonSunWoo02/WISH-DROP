@@ -106,21 +106,22 @@ class _CreateWishPageState extends State<CreateWishPage> {
 
     setState(() => _isLoading = true);
     try {
-      await _repository.createWish(
+      final newProjectId = await _repository.createWish(
         title: _titleController.text,
         description: _descController.text,
         targetAmount: targetAmount,
         endDate: _endDate,
-        imageFile: _imageFile, // XFile 타입인지 확인
+        imageFile: _imageFile,
         allowAnonymous: _allowAnonymous,
         allowMessages: _allowMessages,
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // 완료 후 닫기
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('위시가 생성되었습니다! 🎉')));
+      Navigator.pop(context, newProjectId); // 홈에서 해당 카드 등장 애니메이션용
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('위시가 생성되었습니다! 🎉')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(
         context,

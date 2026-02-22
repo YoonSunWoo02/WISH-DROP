@@ -1,22 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:wish_drop/core/theme.dart';
-// 🚨 홈 화면으로 가기 위해 꼭 필요합니다!
 import 'package:wish_drop/features/wish/presentation/pages/home_page.dart';
+import 'package:wish_drop/features/donation/presentation/pages/my_donation_page.dart';
 
 class DonationSuccessPage extends StatelessWidget {
-  const DonationSuccessPage({super.key});
+  /// 후원한 위시의 project ID — 홈에서 게이지 애니메이션에 사용
+  final int? donatedProjectId;
+
+  const DonationSuccessPage({
+    super.key,
+    this.donatedProjectId,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background, // 또는 Colors.white
+      backgroundColor: AppTheme.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 1. 성공 아이콘 또는 이미지
               Container(
                 width: 120,
                 height: 120,
@@ -31,8 +36,6 @@ class DonationSuccessPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-
-              // 2. 성공 메시지
               const Text(
                 "후원이 완료되었습니다!",
                 style: TextStyle(
@@ -52,17 +55,18 @@ class DonationSuccessPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 48),
-
-              // 3. 홈으로 돌아가기 버튼
               SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
-                    // 🚀 [핵심 수정] 홈 화면으로 이동하며 스택 초기화
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                      (route) => false, // 뒤로 가기 버튼 눌러도 성공 화면 안 나오게 함
+                      MaterialPageRoute(
+                        builder: (context) => HomePage(
+                          animateProjectId: donatedProjectId,
+                        ),
+                      ),
+                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -79,6 +83,22 @@ class DonationSuccessPage extends StatelessWidget {
                   ),
                 ),
               ),
+              if (donatedProjectId != null) ...[
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => MyDonationPage(
+                          highlightedProjectId: donatedProjectId,
+                        ),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  child: const Text('보낸 마음 보기'),
+                ),
+              ],
             ],
           ),
         ),

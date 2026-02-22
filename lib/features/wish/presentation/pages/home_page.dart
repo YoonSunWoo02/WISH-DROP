@@ -14,28 +14,57 @@ import '../../../friend/data/friend_repository.dart';
 import '../../../friend/presentation/friend_invite_page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  /// 후원 직후 게이지 애니메이션을 트리거할 project ID.
+  /// null이면 모든 카드 애니메이션 없이 즉시 표시.
+  final int? animateProjectId;
+
+  const HomePage({
+    super.key,
+    this.animateProjectId,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
-  int _homeStreamKey = 0; // Realtime 스트림 재연결용 (에러 시 다시 시도)
-  String? _userNickname; // 프로필 닉네임 (빈 위시 안내 문구용)
+  int _homeStreamKey = 0;
+  String? _userNickname;
+  int? _animateProjectId;
   final ProjectRepository _repository = ProjectRepository();
   final _appLinks = AppLinks();
   final _friendRepo = FriendRepository(supabase: Supabase.instance.client);
   int _friendRequestCount = 0;
+  late AnimationController _badgePulseController;
+  late Animation<double> _badgeScale;
 
   @override
   void initState() {
     super.initState();
+    _animateProjectId = widget.animateProjectId;
+    _badgePulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+    _badgeScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(
+      parent: _badgePulseController,
+      curve: Curves.easeOut,
+    ));
     _repository.checkAndCompleteProjects();
     _loadRequestCount();
     _loadUserNickname();
     _initDeepLinks();
+  }
+
+  @override
+  void dispose() {
+    _badgePulseController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserNickname() async {
@@ -53,7 +82,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadRequestCount() async {
     final count = await _friendRepo.fetchPendingRequestCount();
     if (!mounted) return;
-    setState(() => _friendRequestCount = count);
+    setState(() {
+      final prev = _friendRequestCount;
+      _friendRequestCount = count;
+      if (count > prev) _badgePulseController.forward(from: 0);
+    });
   }
 
   Future<void> _initDeepLinks() async {
@@ -163,6 +196,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                 );
               },
+              animate: _animateProjectId == project.id,
+              onAnimationEnd: () {
+                if (mounted) setState(() => _animateProjectId = null);
+              },
             );
           },
         );
@@ -235,13 +272,16 @@ class _HomePageState extends State<HomePage> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  final newId = await Navigator.push<int>(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const CreateWishPage(),
                     ),
                   );
+                  if (newId != null && mounted) {
+                    setState(() => _animateProjectId = newId);
+                  }
                 },
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
@@ -322,13 +362,16 @@ class _HomePageState extends State<HomePage> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.add_box_outlined),
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    final newId = await Navigator.push<int>(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const CreateWishPage(),
                       ),
                     );
+                    if (newId != null && mounted) {
+                      setState(() => _animateProjectId = newId);
+                    }
                   },
                 ),
               ],
@@ -354,15 +397,21 @@ class _HomePageState extends State<HomePage> {
             label: '홈',
           ),
           BottomNavigationBarItem(
-            icon: Badge(
-              isLabelVisible: _friendRequestCount > 0,
-              label: Text('$_friendRequestCount'),
-              child: const Icon(Icons.people_outline),
+            icon: ScaleTransition(
+              scale: _badgeScale,
+              child: Badge(
+                isLabelVisible: _friendRequestCount > 0,
+                label: Text('$_friendRequestCount'),
+                child: const Icon(Icons.people_outline),
+              ),
             ),
-            activeIcon: Badge(
-              isLabelVisible: _friendRequestCount > 0,
-              label: Text('$_friendRequestCount'),
-              child: const Icon(Icons.people),
+            activeIcon: ScaleTransition(
+              scale: _badgeScale,
+              child: Badge(
+                isLabelVisible: _friendRequestCount > 0,
+                label: Text('$_friendRequestCount'),
+                child: const Icon(Icons.people),
+              ),
             ),
             label: '친구',
           ),

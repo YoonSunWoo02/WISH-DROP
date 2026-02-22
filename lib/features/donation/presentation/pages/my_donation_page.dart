@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme.dart';
 import '../../../../core/search_history_helper.dart';
+import '../../../../core/stagger_fade_in.dart';
 import '../../data/donation_repository.dart';
 
 /// 보낸 마음 검색 기록 키 (로컬 저장)
@@ -9,7 +10,10 @@ const _kDonationSearchHistoryKey = 'search_history_donation';
 
 /// 보낸 마음(후원 내역) — 월별 헤더 + 검색(닉네임 OR 선물명) + 검색 기록 + 카드
 class MyDonationPage extends StatefulWidget {
-  const MyDonationPage({super.key});
+  /// 후원 직후 이 프로젝트 ID 카드를 잠시 강조 (테두리 플래시)
+  final int? highlightedProjectId;
+
+  const MyDonationPage({super.key, this.highlightedProjectId});
 
   @override
   State<MyDonationPage> createState() => _MyDonationPageState();
@@ -227,6 +231,7 @@ class _MyDonationPageState extends State<MyDonationPage> {
     final grouped = _groupByMonth();
     final keys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     final list = <Widget>[];
+    int cardIndex = 0;
 
     for (final key in keys) {
       final items = grouped[key]!;
@@ -249,12 +254,20 @@ class _MyDonationPageState extends State<MyDonationPage> {
       );
 
       for (final item in items) {
+        final idx = cardIndex++;
+        final projectId = item['project_id'] as int?;
+        final isHighlighted = widget.highlightedProjectId != null &&
+            projectId == widget.highlightedProjectId;
         list.add(
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _DonationCard(
-              item: item,
-              formatter: _formatter,
+          StaggerFadeIn(
+            index: idx,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DonationCard(
+                item: item,
+                formatter: _formatter,
+                isHighlighted: isHighlighted,
+              ),
             ),
           ),
         );
@@ -266,14 +279,53 @@ class _MyDonationPageState extends State<MyDonationPage> {
   }
 }
 
-class _DonationCard extends StatelessWidget {
+class _DonationCard extends StatefulWidget {
   final Map<String, dynamic> item;
   final NumberFormat formatter;
+  final bool isHighlighted;
 
-  const _DonationCard({required this.item, required this.formatter});
+  const _DonationCard({
+    required this.item,
+    required this.formatter,
+    this.isHighlighted = false,
+  });
+
+  @override
+  State<_DonationCard> createState() => _DonationCardState();
+}
+
+class _DonationCardState extends State<_DonationCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _highlightController;
+  late Animation<double> _highlightOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    _highlightOpacity = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(parent: _highlightController, curve: Curves.easeOut),
+    );
+    if (widget.isHighlighted) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) _highlightController.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _highlightController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final formatter = widget.formatter;
     final projects = item['projects'] as Map<String, dynamic>?;
     final projectTitle = projects?['title'] as String? ?? '삭제된 프로젝트';
     final creatorNickname = projects?['creator_nickname'] as String?;
@@ -286,7 +338,7 @@ class _DonationCard extends StatelessWidget {
         ? creatorNickname
         : projectTitle;
 
-    return Container(
+    Widget card = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -355,6 +407,23 @@ class _DonationCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (!widget.isHighlighted) return card;
+    return AnimatedBuilder(
+      animation: _highlightController,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.primary.withOpacity(_highlightOpacity.value * 0.9),
+              width: 2,
+            ),
+          ),
+          child: card,
+        );
+      },
     );
   }
 }

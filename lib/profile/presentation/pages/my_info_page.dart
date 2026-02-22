@@ -118,8 +118,8 @@ class _MyInfoPageState extends State<MyInfoPage> {
                   children: [
                     const SizedBox(height: 28),
 
-                    // ── 프로필 영역 ─────────────────────────
-                    _ProfileHeader(
+                    // ── 프로필 영역 (순차 fadeIn) ─────────────
+                    _AnimatedProfileHeader(
                       nickname: nickname,
                       friendCode: friendCode,
                       avatarUrl: avatarUrl,
@@ -315,15 +315,15 @@ class _MyInfoPageState extends State<MyInfoPage> {
   Widget _divider() => const Divider(height: 1, indent: 56);
 }
 
-// ── 프로필 헤더 위젯 ─────────────────────────────────────────
+// ── 프로필 헤더 (순차 fadeIn) ─────────────────────────────────
 
-class _ProfileHeader extends StatelessWidget {
+class _AnimatedProfileHeader extends StatefulWidget {
   final String nickname;
   final String friendCode;
   final String? avatarUrl;
   final VoidCallback onEditTap;
 
-  const _ProfileHeader({
+  const _AnimatedProfileHeader({
     required this.nickname,
     required this.friendCode,
     this.avatarUrl,
@@ -331,115 +331,173 @@ class _ProfileHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+  State<_AnimatedProfileHeader> createState() => _AnimatedProfileHeaderState();
+}
+
+class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _avatarOpacity;
+  late Animation<double> _nicknameOpacity;
+  late Animation<double> _codeOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _avatarOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0, 0.4, curve: Curves.easeOut),
       ),
-      child: Column(
-        children: [
-          // 아바타
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundColor: AppTheme.primary.withOpacity(0.1),
-                backgroundImage:
-                    avatarUrl != null ? NetworkImage(avatarUrl!) : null,
-                child: avatarUrl == null
-                    ? Text(
-                        nickname.isNotEmpty ? nickname[0] : '?',
-                        style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primary),
-                      )
-                    : null,
+    );
+    _nicknameOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.2, 0.6, curve: Curves.easeOut),
+      ),
+    );
+    _codeOpacity = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.4, 1, curve: Curves.easeOut),
+      ),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nickname = widget.nickname;
+    final friendCode = widget.friendCode;
+    final avatarUrl = widget.avatarUrl;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // 닉네임
-          Text(
-            nickname,
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textHeading),
-          ),
-          const SizedBox(height: 4),
-
-          // 친구 코드
-          if (friendCode.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: friendCode));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('친구 코드가 복사됐어요!')),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.background,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppTheme.borderColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+          child: Column(
+            children: [
+              Opacity(
+                opacity: _avatarOpacity.value,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
                   children: [
-                    const Icon(Icons.tag,
-                        size: 13, color: AppTheme.textBody),
-                    const SizedBox(width: 4),
-                    Text(
-                      friendCode,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppTheme.textBody),
+                    CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppTheme.primary.withOpacity(0.1),
+                      backgroundImage:
+                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl == null
+                          ? Text(
+                              nickname.isNotEmpty ? nickname[0] : '?',
+                              style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primary),
+                            )
+                          : null,
                     ),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.copy,
-                        size: 12, color: AppTheme.textBody),
                   ],
                 ),
               ),
-            ),
-
-          const SizedBox(height: 16),
-
-          // 프로필 수정 버튼
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onEditTap,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.borderColor),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+              const SizedBox(height: 14),
+              Opacity(
+                opacity: _nicknameOpacity.value,
+                child: Text(
+                  nickname,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHeading),
+                ),
               ),
-              child: const Text(
-                '프로필 수정',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textHeading),
+              const SizedBox(height: 4),
+              if (friendCode.isNotEmpty)
+                Opacity(
+                  opacity: _codeOpacity.value,
+                  child: GestureDetector(
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: friendCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('친구 코드가 복사됐어요!')),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.background,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppTheme.borderColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.tag,
+                              size: 13, color: AppTheme.textBody),
+                          const SizedBox(width: 4),
+                          Text(
+                            friendCode,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppTheme.textBody),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.copy,
+                              size: 12, color: AppTheme.textBody),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Opacity(
+                opacity: _codeOpacity.value,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: widget.onEditTap,
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.borderColor),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text(
+                      '프로필 수정',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textHeading),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1,8 +1,31 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
+/// insertDonationIfNew 결과: 새로 삽입 / 같은 영수증 중복 / 이미 해당 위시에 후원함
+enum DonationInsertResult {
+  inserted,
+  duplicatePaymentId,
+  alreadyDonated,
+}
+
 class DonationRepository {
   final _supabase = Supabase.instance.client;
+
+  /// 이 위시(project)에 오늘 이미 후원했는지 판단할 때 사용. 해당 user+project의 가장 최근 후원 시각(UTC) 반환.
+  Future<DateTime?> getLastDonationAtForProject(String userId, int projectId) async {
+    final res = await _supabase
+        .from('donations')
+        .select('created_at')
+        .eq('user_id', userId)
+        .eq('project_id', projectId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    if (res == null) return null;
+    final at = res['created_at'];
+    if (at == null) return null;
+    return DateTime.parse(at.toString()).toUtc();
+  }
 
   /// 결제 검증 플로우용: 후원 INSERT + payment_id (중복 방지)
   Future<void> insertDonation({
@@ -21,6 +44,48 @@ class DonationRepository {
       'is_anonymous': isAnonymous,
       'payment_id': paymentId,
     });
+  }
+
+  /// INSERT 시도 결과 반환.
+  /// inserted → 새로 삽입됨(updateCurrentAmount 호출 후 성공 화면)
+  /// duplicatePaymentId → 같은 영수증으로 이미 처리됨(성공 화면만)
+  /// alreadyDonated → 이 위시에 이미 후원함(안내 메시지)
+  Future<DonationInsertResult> insertDonationIfNew({
+    required int projectId,
+    required String userId,
+    required int amount,
+    required String message,
+    required bool isAnonymous,
+    required String paymentId,
+  }) async {
+    try {
+      await _supabase.from('donations').insert({
+        'project_id': projectId,
+        'user_id': userId,
+        'amount': amount,
+        'message': message,
+        'is_anonymous': isAnonymous,
+        'payment_id': paymentId,
+      });
+      return DonationInsertResult.inserted;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('payment_id')) {
+        debugPrint('insertDonationIfNew: 이미 결제된 payment_id — 성공으로 간주');
+        return DonationInsertResult.duplicatePaymentId;
+      }
+      if (msg.contains('user_id') ||
+          msg.contains('project_id') ||
+          msg.contains('one_per_user_project')) {
+        debugPrint('insertDonationIfNew: 이미 후원한 위시(레거시)');
+        return DonationInsertResult.alreadyDonated;
+      }
+      if (msg.contains('duplicate') || msg.contains('unique') || msg.contains('23505')) {
+        debugPrint('insertDonationIfNew: 중복 — payment_id로 간주');
+        return DonationInsertResult.duplicatePaymentId;
+      }
+      rethrow;
+    }
   }
 
   /// current_amount 증가 (트리거가 자동으로 종료 조건 체크)
