@@ -88,31 +88,19 @@ class DonationRepository {
     }
   }
 
-  /// current_amount 증가 (트리거가 자동으로 종료 조건 체크)
+  /// current_amount 원자적 증가 (동시성 안전 — RPC에서 SET current_amount = current_amount + N)
   Future<void> updateCurrentAmount({
     required int projectId,
     required int addedAmount,
   }) async {
     try {
-      // 현재 금액 조회
-      final response = await _supabase
-          .from('projects')
-          .select('current_amount')
-          .eq('id', projectId)
-          .maybeSingle();
-
-      if (response == null) {
-        debugPrint('updateCurrentAmount: project not found id=$projectId');
-        throw Exception('프로젝트를 찾을 수 없습니다.');
-      }
-      final int currentAmount = response['current_amount'] as int;
-      final int nextAmount = currentAmount + addedAmount;
-
-      // 금액 업데이트 (트리거가 자동으로 종료 조건 체크)
-      await _supabase
-          .from('projects')
-          .update({'current_amount': nextAmount})
-          .eq('id', projectId);
+      await _supabase.rpc(
+        'increment_project_amount',
+        params: {
+          'p_project_id': projectId,
+          'p_amount': addedAmount,
+        },
+      );
     } catch (e) {
       debugPrint('updateCurrentAmount 에러: $e');
       rethrow;
@@ -142,38 +130,17 @@ class DonationRepository {
         'message': message,
       });
 
-      print("🔍 [2단계] 현재 프로젝트 금액 조회 중...");
+      print("🆙 [2단계] 금액 원자적 증가 (increment_project_amount RPC)");
 
-      // 현재 금액 조회 (쿼리 형식 수정)
-      final project = await _supabase
-          .from('projects')
-          .select('current_amount')
-          .eq('id', parsedProjectId)
-          .maybeSingle();
+      await _supabase.rpc(
+        'increment_project_amount',
+        params: {
+          'p_project_id': parsedProjectId,
+          'p_amount': amount,
+        },
+      );
 
-      if (project == null) {
-        throw Exception("프로젝트를 찾을 수 없습니다. (ID: $parsedProjectId)");
-      }
-
-      final int currentAmount = project['current_amount'] as int? ?? 0;
-      final int nextAmount = currentAmount + amount;
-
-      print("🆙 [3단계] 금액 업데이트 중: $currentAmount -> $nextAmount");
-
-      // 금액 업데이트 (트리거가 자동으로 종료 조건 체크)
-      final response = await _supabase
-          .from('projects')
-          .update({'current_amount': nextAmount})
-          .eq('id', parsedProjectId)
-          .select();
-
-      // 🚨 [핵심] 빈 리스트가 반환되면 권한(RLS) 문제임
-      if (response.isEmpty) {
-        print("❌ [실패] DB 업데이트 권한이 없습니다. Supabase SQL Editor에서 권한을 풀어주세요.");
-        throw Exception("게이지 업데이트 실패 (RLS 정책 문제)");
-      }
-
-      print("🚀 [성공] DB 업데이트 및 후원 완료!");
+      print("🚀 [성공] 후원 완료!");
     } catch (e) {
       print("❌ [치명적 에러] 후원 처리 실패: $e");
       rethrow;

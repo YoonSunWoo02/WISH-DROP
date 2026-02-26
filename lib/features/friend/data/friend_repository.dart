@@ -189,12 +189,21 @@ class FriendRepository {
     return ProfileModel.fromJson(res);
   }
 
+  /// 친구 요청 전송. 이미 요청/친구 관계면 예외 (friendships_unique_pair_idx)
   Future<void> sendFriendRequest(String receiverId) async {
-    await supabase.from('friendships').insert({
-      'requester_id': _myId,
-      'receiver_id': receiverId,
-      'status': 'pending',
-    });
+    try {
+      await supabase.from('friendships').insert({
+        'requester_id': _myId,
+        'receiver_id': receiverId,
+        'status': 'pending',
+      });
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('unique') || msg.contains('duplicate') || msg.contains('23505')) {
+        throw Exception('이미 친구 요청을 보냈거나, 친구 관계예요.');
+      }
+      rethrow;
+    }
   }
 
   Future<String?> getFriendshipStatus(String targetId) async {
@@ -245,13 +254,28 @@ class FriendRepository {
       return existing['token'] as String;
     }
 
-    final res = await supabase
-        .from('invite_tokens')
-        .insert({'user_id': _myId})
-        .select('token')
-        .single();
-    debugPrint('[FriendRepository] created new invite token=${res['token']}');
-    return res['token'] as String;
+    try {
+      final res = await supabase
+          .from('invite_tokens')
+          .insert({'user_id': _myId})
+          .select('token')
+          .single();
+      debugPrint('[FriendRepository] created new invite token=${res['token']}');
+      return res['token'] as String;
+    } catch (e) {
+      // 동시에 다른 요청이 먼저 INSERT한 경우 (invite_tokens_user_active_idx 유니크)
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('unique') || msg.contains('duplicate') || msg.contains('23505')) {
+        final retry = await supabase
+            .from('invite_tokens')
+            .select('token')
+            .eq('user_id', _myId)
+            .isFilter('used_at', null)
+            .maybeSingle();
+        if (retry != null) return retry['token'] as String;
+      }
+      rethrow;
+    }
   }
 
   /// 초대용 딥링크 (wishdrop://friend?token=...)

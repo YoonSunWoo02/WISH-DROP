@@ -38,16 +38,24 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   }
 
   Future<void> _sendRequest(String userId) async {
-    await _repo.sendFriendRequest(userId);
-    setState(() => _statusCache[userId] = 'pending');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '친구 요청을 보냈어요! 상대방이 수락하면 친구가 돼요.',
+    try {
+      await _repo.sendFriendRequest(userId);
+      setState(() => _statusCache[userId] = 'pending');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '친구 요청을 보냈어요! 상대방이 수락하면 친구가 돼요.',
+            ),
           ),
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
     }
   }
 

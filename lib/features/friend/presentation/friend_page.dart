@@ -115,8 +115,9 @@ class _FriendPageState extends State<FriendPage> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('요청 실패: $e')),
+          SnackBar(content: Text(msg.startsWith('요청') ? msg : '요청 실패: $msg')),
         );
       }
     } finally {
