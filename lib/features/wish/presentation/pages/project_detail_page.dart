@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/wish/data/project_model.dart';
 import 'package:wish_drop/features/wish/data/project_repository.dart';
+import 'package:wish_drop/features/wish/data/project_share_service.dart';
 import 'package:wish_drop/features/donation/presentation/pages/donation_input_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
@@ -140,6 +141,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     }
   }
 
+  Future<void> _shareProject(BuildContext context) async {
+    try {
+      await ProjectShareService.shareProject(_project);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('공유 실패: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyFormat = NumberFormat("#,###");
@@ -156,6 +169,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
         ),
         title: const Text("선물 상세"),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: () => _shareProject(context),
+          ),
           if (isMyProject)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),

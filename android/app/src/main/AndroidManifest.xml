@@ -28,7 +28,10 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                
                 <data android:scheme="wishdrop" android:host="friend" />
+                
+                <data android:scheme="wishdrop" android:host="project" />
             </intent-filter>
         </activity>
 

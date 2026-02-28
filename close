@@ -1,0 +1,119 @@
+[33mcommit 5ba99fcee3744fd0c987744f23a6b402954915e0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/animation[m[33m)[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Thu Feb 26 22:55:25 2026 +0900
+
+    애니메이션 기능 추가
+
+[33mcommit b13f1e6ce571261ed586a8e69bf02d6ae6e4b0b1[m[33m ([m[1;31morigin/feature/animation[m[33m)[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sun Feb 22 17:06:27 2026 +0900
+
+    위시 1개당 하루에 한 번만 후원 가능
+
+[33mcommit 974003eae6f6e20ac4bda75395a80d559ae72e64[m[33m ([m[1;31morigin/feature/profile[m[33m, [m[1;32mmain[m[33m, [m[1;32mfeature/profile[m[33m)[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sun Feb 22 02:42:28 2026 +0900
+
+    닉네임#코드 형식 오류 해결
+
+[33mcommit ea0922ab5cfd1c9ece72cf9f1ed2e742084ec590[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sat Feb 21 02:30:56 2026 +0900
+
+    내 정보(프로필) 화면 UI 및 저장 기능 구현
+
+[33mcommit 5b1ce3805f61bfb4ba5732e54be6446b5b5c9515[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/feature/freinds[m[33m, [m[1;32mfeature/freinds[m[33m)[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Fri Feb 20 01:12:01 2026 +0900
+
+    친구 추가, 사용자 코드 생성
+
+[33mcommit 5f845b7efab95ab1cc981cb53891a25fe516bb56[m[33m ([m[1;31morigin/feat/my-donation-history[m[33m, [m[1;32mfeat/my-donation-history[m[33m)[m
+Author: xha020215 <xha020215@gmail.com>
+Date:   Thu Feb 19 17:49:35 2026 +0900
+
+    후원, 위시 기록 가능
+
+[33mcommit af0d9d3e118b47e4645bc0dc5ae3878c7eca2e45[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Wed Feb 18 16:07:57 2026 +0900
+
+    후원기능 작성 작동... 결제 부분 폴더 구조 변경
+
+[33mcommit f3ca0001f6b28689bc8958dc6eb7c1c5399c6eb8[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Wed Feb 18 03:22:25 2026 +0900
+
+    파일 구조 변경 및 결제 기능 재구성
+
+[33mcommit f51c9d402b7040eb9ebedee7f80aa8c90b97da4d[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Tue Feb 17 23:44:42 2026 +0900
+
+    파일 분리 후 결제창에서 오류 발생
+
+[33mcommit aaf1526e17cae3505aa711e82ff6935a05195224[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Tue Feb 17 21:43:02 2026 +0900
+
+    유지보수를 위한 파일 구조 변경
+
+[33mcommit 0d4a10e02595e15be53ee9800b910f73f0f7b21a[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Tue Feb 17 21:10:26 2026 +0900
+
+    내 후원 내역 조회 기능 만들기 시작
+
+[33mcommit 7ca16f3d88a1a31f77cac5b07a4542a28298f49a[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sun Feb 15 03:48:07 2026 +0900
+
+    포트원 웹훅 연동 및 후원 데이터 자동 저장 기능 추가, Deno를 사용해 서버 구축 완료
+
+[33mcommit 6209cefc7c987fe7934d3e0bc35b560716427c76[m[33m ([m[1;31morigin/feature/donation[m[33m, [m[1;32mfeature/donation[m[33m)[m
+Author: xha020215 <xha020215@gmail.com>
+Date:   Tue Feb 10 14:36:54 2026 +0900
+
+    포트원 STORE_ID,CHANNEL_KEY 추가로 결제 기능 개발 완료
+
+[33mcommit 2cd9c3c94c4aeca9a595e553dcb139fffc29ac5b[m
+Author: xha020215 <xha020215@gmail.com>
+Date:   Mon Feb 9 17:08:26 2026 +0900
+
+    수파베이스에 SQL 추가 및 버켓 생성 위시리스트 만들어짐
+
+[33mcommit 1a9dd5dddce2d6ee76cde3dcb1ebf6830da231cb[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Mon Feb 9 00:51:53 2026 +0900
+
+    project_repository 생성하여 유지 보수 생성
+
+[33mcommit 19b5986a7e6e2db74e02d02e61d7dbd6ea1b113f[m[33m ([m[1;31morigin/feature/design-payment[m[33m, [m[1;32mfeature/design-payment[m[33m)[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sun Feb 8 00:35:38 2026 +0900
+
+    위시 생성 화면 디자인 수정
+
+[33mcommit 244965e31f10990fc25a36776f776b5b93e2590d[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sun Feb 8 00:03:06 2026 +0900
+
+    로그인/회원가입 UI 리뉴얼 및 Supabase 인증 기능 구현
+    
+    - 로그인 페이지 디자인 적용 및 소셜 버튼 수정
+    - 회원가입 기능 구현 (비번 확인, 눈 아이콘, 유효성 검사)
+    - 커스텀 팝업 다이얼로그 추가 (성공/실패)
+    - AuthGate를 통한 자동 로그인(세션 유지) 구현
+    - 스크롤 뷰 적용으로 오버플로우 해결
+
+[33mcommit 1decbcebf648b0fd2276f8536e7f7539a0c35bbc[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Thu Feb 5 00:27:13 2026 +0900
+
+    feat: 디자인 수정 및 결제 수단 연동 기능 구현
+
+[33mcommit f6b8046476b42cbf6b0def273a65f4e10193bfec[m
+Author: xha0215 <xha0215@naver.com>
+Date:   Sat Jan 31 01:25:31 2026 +0900
+
+    chore: 프로젝트 초기화 및 보안 설정 완료
