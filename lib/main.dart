@@ -1,19 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_share/kakao_flutter_sdk_share.dart';
 import 'core/app_config.dart';
 import 'core/theme.dart';
 import 'features/auth/presentation/pages/login_page.dart';
-import 'features/wish/presentation/pages/home_page.dart';
-import 'features/wish/data/project_repository.dart';
 import 'features/friend/presentation/friend_invite_page.dart';
+import 'features/wish/data/project_repository.dart';
+import 'features/wish/presentation/pages/home_page.dart';
+import 'web/app_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await AppConfig.init();
 
-  KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
+  if (!kIsWeb) {
+    KakaoSdk.init(nativeAppKey: AppConfig.kakaoNativeAppKey);
+  }
 
   await Supabase.initialize(
     url: AppConfig.supabaseUrl,
@@ -26,7 +30,7 @@ void main() async {
     await repo.checkAndCompleteProjects();
   } catch (_) {}
 
-  runApp(const MyApp());
+  runApp(kIsWeb ? const AppWeb() : const MyApp());
 }
 
 class MyApp extends StatelessWidget {
