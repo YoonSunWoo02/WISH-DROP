@@ -93,21 +93,43 @@ class _HomePageState extends State<HomePage>
     _listenDeepLinks();
     try {
       final initialUri = await _appLinks.getInitialLink();
-      if (initialUri != null && initialUri.host == 'friend') {
+      if (initialUri == null || !mounted) return;
+      if (initialUri.host == 'friend') {
         final token = initialUri.queryParameters['token'];
-        if (token != null && mounted) {
+        if (token != null) {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => FriendInvitePage(token: token),
             ),
           );
         }
+      } else if (initialUri.host == 'project') {
+        await _openProjectFromDeepLink(initialUri);
       }
     } catch (_) {}
   }
 
+  Future<void> _openProjectFromDeepLink(Uri uri) async {
+    final idStr = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    final projectId = idStr != null ? int.tryParse(idStr) : null;
+    if (projectId == null) return;
+    final project = await _repository.fetchProjectById(projectId);
+    if (!mounted) return;
+    if (project != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProjectDetailPage(project: project),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('해당 위시를 찾을 수 없어요.')),
+      );
+    }
+  }
+
   void _listenDeepLinks() {
-    _appLinks.uriLinkStream.listen((uri) {
+    _appLinks.uriLinkStream.listen((uri) async {
       if (!mounted) return;
       if (uri.host == 'friend') {
         final token = uri.queryParameters['token'];
@@ -118,6 +140,8 @@ class _HomePageState extends State<HomePage>
             ),
           );
         }
+      } else if (uri.host == 'project') {
+        await _openProjectFromDeepLink(uri);
       }
     });
   }
