@@ -4,12 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme.dart';
 import '../../../features/wish/data/project_model.dart';
 import '../../../features/wish/data/project_repository.dart';
 import '../../../features/wish/data/project_share_service.dart';
-import '../../../features/donation/presentation/pages/donation_input_page.dart';
+import 'donation_page_web.dart';
 
 /// 웹 전용 위시 상세 페이지 — projectId로 로드 후 앱과 동일 UI
 class ProjectDetailPageWeb extends StatefulWidget {
@@ -174,12 +175,18 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DonationInputPage(project: project),
-                      ),
-                    ),
+                    onPressed: () {
+                      final isLoggedIn =
+                          Supabase.instance.client.auth.currentUser != null;
+                      if (isLoggedIn) {
+                        context.push('/donation', extra: project);
+                      } else {
+                        // 비로그인: 로그인 후 현재 프로젝트 상세로 복귀
+                        context.push(
+                          '/login?redirect=/project/${project.id}',
+                        );
+                      }
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,
                       foregroundColor: Colors.white,

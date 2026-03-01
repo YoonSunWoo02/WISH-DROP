@@ -31,6 +31,31 @@
 
   <title>wish_drop</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- PortOne V2 JavaScript SDK (웹 결제용) -->
+  <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+  <script>
+    // Dart ↔ PortOne SDK 브릿지 (JSON 입출력으로 dart:js_interop 단순화)
+    window.requestPortOnePaymentJson = function(jsonStr) {
+      if (typeof PortOne === 'undefined') {
+        return Promise.reject(new Error('PortOne SDK not loaded'));
+      }
+      var config = JSON.parse(jsonStr);
+      return PortOne.requestPayment(config).then(function(r) {
+        return JSON.stringify({
+          code: r.code,
+          message: r.message || null,
+          paymentId: r.paymentId || config.paymentId
+        });
+      }).catch(function(e) {
+        return JSON.stringify({
+          code: 'ERROR',
+          message: e && e.message ? e.message : String(e),
+          paymentId: null
+        });
+      });
+    };
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

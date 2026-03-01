@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme.dart';
-import '../../features/auth/presentation/pages/signup_page.dart';
 
 /// 웹 전용 로그인 페이지 — 앱과 동일 UI, go_router 네비게이션
 class LoginPageWeb extends StatefulWidget {
@@ -27,7 +26,15 @@ class _LoginPageWebState extends State<LoginPageWeb> {
       );
 
       if (mounted && response.user != null) {
-        context.go('/');
+        final redirect = Uri.base.queryParameters['redirect'];
+        if (redirect != null &&
+            redirect.isNotEmpty &&
+            redirect.startsWith('/') &&
+            !redirect.startsWith('//')) {
+          context.go(redirect);
+        } else {
+          context.go('/');
+        }
       }
     } catch (e) {
       if (mounted) _showFailureDialog();
@@ -206,12 +213,7 @@ class _LoginPageWebState extends State<LoginPageWeb> {
                       color: const Color(0xFFE2E8F0),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignUpPage(),
-                        ),
-                      ),
+                      onTap: () => context.push('/signup'),
                       child: const Text(
                         "회원가입",
                         style: TextStyle(
