@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../wish/data/project_model.dart';
@@ -35,9 +37,7 @@ class _FriendWishPageState extends State<FriendWishPage> {
           .order('created_at', ascending: false);
 
       setState(() {
-        _wishes = (res as List)
-            .map((e) => ProjectModel.fromJson(e))
-            .toList();
+        _wishes = (res as List).map((e) => ProjectModel.fromJson(e)).toList();
       });
     } finally {
       if (mounted) {
@@ -57,8 +57,7 @@ class _FriendWishPageState extends State<FriendWishPage> {
               backgroundImage: widget.friend.avatarUrl != null
                   ? NetworkImage(widget.friend.avatarUrl!)
                   : null,
-              backgroundColor:
-                  Theme.of(context).primaryColor.withOpacity(0.1),
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
               child: widget.friend.avatarUrl == null
                   ? Text(
                       widget.friend.nickname[0],
@@ -74,41 +73,42 @@ class _FriendWishPageState extends State<FriendWishPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _wishes.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('🎁', style: TextStyle(fontSize: 48)),
-                      SizedBox(height: 12),
-                      Text(
-                        '진행 중인 위시가 없어요',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+          ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('🎁', style: TextStyle(fontSize: 48)),
+                  SizedBox(height: 12),
+                  Text(
+                    '진행 중인 위시가 없어요',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _wishes.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 12),
-                  itemBuilder: (_, i) {
-                    final wish = _wishes[i];
-                    return _WishCard(
-                      wish: wish,
-                      onTap: () => Navigator.push(
+                ],
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _wishes.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (_, i) {
+                final wish = _wishes[i];
+                return _WishCard(
+                  wish: wish,
+                  onTap: () {
+                    if (kIsWeb) {
+                      context.push('/project/${wish.id}');
+                    } else {
+                      Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              ProjectDetailPage(project: wish),
+                          builder: (_) => ProjectDetailPage(project: wish),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   },
-                ),
+                );
+              },
+            ),
     );
   }
 }
@@ -169,10 +169,7 @@ class _WishCard extends StatelessWidget {
                       wish.description!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                      ),
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
                   const SizedBox(height: 12),
@@ -187,8 +184,7 @@ class _WishCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         '${(wish.progressRate * 100).toStringAsFixed(0)}% 달성',
@@ -237,8 +233,7 @@ class _WishCard extends StatelessWidget {
   }
 
   String _fmt(int v) => v.toString().replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-        (m) => '${m[1]},',
-      );
+    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]},',
+  );
 }
-

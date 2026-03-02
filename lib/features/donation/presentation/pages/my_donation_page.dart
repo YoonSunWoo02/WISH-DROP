@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/nickname_code_utils.dart';
 import '../../../../core/theme.dart';
 import '../../../../core/search_history_helper.dart';
 import '../../../../core/stagger_fade_in.dart';
@@ -22,7 +23,10 @@ class MyDonationPage extends StatefulWidget {
 class _MyDonationPageState extends State<MyDonationPage> {
   final _repo = DonationRepository();
   final _formatter = NumberFormat('#,###');
-  final _searchHistory = SearchHistoryHelper(storageKey: _kDonationSearchHistoryKey, maxItems: 10);
+  final _searchHistory = SearchHistoryHelper(
+    storageKey: _kDonationSearchHistoryKey,
+    maxItems: 10,
+  );
   final _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _donations = [];
@@ -52,10 +56,11 @@ class _MyDonationPageState extends State<MyDonationPage> {
     setState(() => _isLoading = true);
     try {
       final list = await _repo.getMyDonationsWithCreator();
-      if (mounted) setState(() {
-        _donations = list;
-        _isLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _donations = list;
+          _isLoading = false;
+        });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -67,7 +72,8 @@ class _MyDonationPageState extends State<MyDonationPage> {
     if (q.isEmpty) return true;
     final projects = item['projects'] as Map<String, dynamic>?;
     final projectTitle = (projects?['title'] as String? ?? '').toLowerCase();
-    final creatorNickname = (projects?['creator_nickname'] as String? ?? '').toLowerCase();
+    final creatorNickname = (projects?['creator_nickname'] as String? ?? '')
+        .toLowerCase();
     return projectTitle.contains(q) || creatorNickname.contains(q);
   }
 
@@ -95,7 +101,9 @@ class _MyDonationPageState extends State<MyDonationPage> {
     final list = _filteredDonations;
     final map = <String, List<Map<String, dynamic>>>{};
     for (final d in list) {
-      final createdAt = DateTime.parse((d['created_at'] as String).toString()).toLocal();
+      final createdAt = DateTime.parse(
+        (d['created_at'] as String).toString(),
+      ).toLocal();
       final key = _monthKey(createdAt);
       map.putIfAbsent(key, () => []).add(d);
     }
@@ -106,10 +114,7 @@ class _MyDonationPageState extends State<MyDonationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('보낸 마음'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('보낸 마음'), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -121,14 +126,17 @@ class _MyDonationPageState extends State<MyDonationPage> {
                   child: _donations.isEmpty
                       ? _buildEmpty()
                       : _filteredDonations.isEmpty
-                          ? _buildNoResults()
-                          : RefreshIndicator(
-                              onRefresh: _load,
-                              child: ListView(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                children: _buildMonthSections(),
-                              ),
+                      ? _buildNoResults()
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
+                            children: _buildMonthSections(),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -160,7 +168,10 @@ class _MyDonationPageState extends State<MyDonationPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );
@@ -235,7 +246,9 @@ class _MyDonationPageState extends State<MyDonationPage> {
 
     for (final key in keys) {
       final items = grouped[key]!;
-      final firstDate = DateTime.parse((items.first['created_at'] as String).toString()).toLocal();
+      final firstDate = DateTime.parse(
+        (items.first['created_at'] as String).toString(),
+      ).toLocal();
       final year = firstDate.year;
       final month = firstDate.month;
 
@@ -256,7 +269,8 @@ class _MyDonationPageState extends State<MyDonationPage> {
       for (final item in items) {
         final idx = cardIndex++;
         final projectId = item['project_id'] as int?;
-        final isHighlighted = widget.highlightedProjectId != null &&
+        final isHighlighted =
+            widget.highlightedProjectId != null &&
             projectId == widget.highlightedProjectId;
         list.add(
           StaggerFadeIn(
@@ -328,14 +342,17 @@ class _DonationCardState extends State<_DonationCard>
     final formatter = widget.formatter;
     final projects = item['projects'] as Map<String, dynamic>?;
     final projectTitle = projects?['title'] as String? ?? '삭제된 프로젝트';
-    final creatorNickname = projects?['creator_nickname'] as String?;
+    final creatorNickname = projects?['creator_nickname'] as String? ?? '';
+    final creatorCode = projects?['creator_friend_code'] as String? ?? '';
     final creatorAvatarUrl = projects?['creator_avatar_url'] as String?;
     final amount = item['amount'] as int? ?? 0;
-    final createdAt = DateTime.parse((item['created_at'] as String).toString()).toLocal();
+    final createdAt = DateTime.parse(
+      (item['created_at'] as String).toString(),
+    ).toLocal();
     final dateLabel = '${createdAt.month}월 ${createdAt.day}일';
 
-    final displayName = (creatorNickname != null && creatorNickname.isNotEmpty)
-        ? creatorNickname
+    final displayName = (creatorNickname.isNotEmpty || creatorCode.isNotEmpty)
+        ? formatNicknameCode(creatorNickname, creatorCode)
         : projectTitle;
 
     Widget card = Container(
@@ -357,7 +374,8 @@ class _DonationCardState extends State<_DonationCard>
           CircleAvatar(
             radius: 26,
             backgroundColor: AppTheme.primary.withOpacity(0.12),
-            backgroundImage: creatorAvatarUrl != null && creatorAvatarUrl.isNotEmpty
+            backgroundImage:
+                creatorAvatarUrl != null && creatorAvatarUrl.isNotEmpty
                 ? NetworkImage(creatorAvatarUrl)
                 : null,
             child: creatorAvatarUrl == null || creatorAvatarUrl.isEmpty
@@ -400,10 +418,7 @@ class _DonationCardState extends State<_DonationCard>
           ),
           Text(
             dateLabel,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textBody,
-            ),
+            style: TextStyle(fontSize: 13, color: AppTheme.textBody),
           ),
         ],
       ),
@@ -417,7 +432,9 @@ class _DonationCardState extends State<_DonationCard>
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppTheme.primary.withOpacity(_highlightOpacity.value * 0.9),
+              color: AppTheme.primary.withOpacity(
+                _highlightOpacity.value * 0.9,
+              ),
               width: 2,
             ),
           ),

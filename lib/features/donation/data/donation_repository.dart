@@ -2,17 +2,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
 /// insertDonationIfNew 결과: 새로 삽입 / 같은 영수증 중복 / 이미 해당 위시에 후원함
-enum DonationInsertResult {
-  inserted,
-  duplicatePaymentId,
-  alreadyDonated,
-}
+enum DonationInsertResult { inserted, duplicatePaymentId, alreadyDonated }
 
 class DonationRepository {
   final _supabase = Supabase.instance.client;
 
   /// 이 위시(project)에 오늘 이미 후원했는지 판단할 때 사용. 해당 user+project의 가장 최근 후원 시각(UTC) 반환.
-  Future<DateTime?> getLastDonationAtForProject(String userId, int projectId) async {
+  Future<DateTime?> getLastDonationAtForProject(
+    String userId,
+    int projectId,
+  ) async {
     final res = await _supabase
         .from('donations')
         .select('created_at')
@@ -80,7 +79,9 @@ class DonationRepository {
         debugPrint('insertDonationIfNew: 이미 후원한 위시(레거시)');
         return DonationInsertResult.alreadyDonated;
       }
-      if (msg.contains('duplicate') || msg.contains('unique') || msg.contains('23505')) {
+      if (msg.contains('duplicate') ||
+          msg.contains('unique') ||
+          msg.contains('23505')) {
         debugPrint('insertDonationIfNew: 중복 — payment_id로 간주');
         return DonationInsertResult.duplicatePaymentId;
       }
@@ -96,10 +97,7 @@ class DonationRepository {
     try {
       await _supabase.rpc(
         'increment_project_amount',
-        params: {
-          'p_project_id': projectId,
-          'p_amount': addedAmount,
-        },
+        params: {'p_project_id': projectId, 'p_amount': addedAmount},
       );
     } catch (e) {
       debugPrint('updateCurrentAmount 에러: $e');
@@ -134,10 +132,7 @@ class DonationRepository {
 
       await _supabase.rpc(
         'increment_project_amount',
-        params: {
-          'p_project_id': parsedProjectId,
-          'p_amount': amount,
-        },
+        params: {'p_project_id': parsedProjectId, 'p_amount': amount},
       );
 
       print("🚀 [성공] 후원 완료!");
@@ -190,9 +185,12 @@ class DonationRepository {
 
       final profilesRes = await _supabase
           .from('profiles')
-          .select('id, nickname, avatar_url')
+          .select('id, nickname, avatar_url, friend_code')
           .inFilter('id', creatorIds.toList());
-      final profiles = { for (final x in profilesRes as List) x['id'] as String: x as Map<String, dynamic> };
+      final profiles = {
+        for (final x in profilesRes as List)
+          x['id'] as String: x as Map<String, dynamic>,
+      };
 
       for (final d in list) {
         final p = d['projects'] as Map<String, dynamic>?;
@@ -201,12 +199,56 @@ class DonationRepository {
         final profile = creatorId != null ? profiles[creatorId] : null;
         p['creator_nickname'] = profile?['nickname'] as String?;
         p['creator_avatar_url'] = profile?['avatar_url'] as String?;
+        p['creator_friend_code'] = profile?['friend_code'] as String?;
       }
 
       return list;
     } catch (e) {
       debugPrint('getMyDonationsWithCreator Error: $e');
       return getMyDonations();
+    }
+  }
+
+  /// 특정 프로젝트의 후원 내역 (참여한 친구들)
+  Future<List<Map<String, dynamic>>> getDonationsForProject(
+    int projectId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', ascending: false);
+
+      final list = List<Map<String, dynamic>>.from(response);
+      if (list.isEmpty) return list;
+
+      final userIds = list
+          .map((d) => d['user_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      if (userIds.isEmpty) return list;
+
+      final profilesRes = await _supabase
+          .from('profiles')
+          .select('id, nickname, avatar_url')
+          .inFilter('id', userIds);
+      final profiles = {
+        for (final x in profilesRes as List)
+          x['id'] as String: x as Map<String, dynamic>,
+      };
+
+      for (final d in list) {
+        final uid = d['user_id'] as String?;
+        final p = uid != null ? profiles[uid] : null;
+        d['donor_nickname'] = p?['nickname'];
+        d['donor_avatar_url'] = p?['avatar_url'];
+      }
+      return list;
+    } catch (e) {
+      debugPrint('getDonationsForProject Error: $e');
+      return [];
     }
   }
 }

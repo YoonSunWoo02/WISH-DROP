@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // 🎨 Indigo & Slate Palette
-  static const Color primary = Color(0xFF4F46E5); // Indigo Primary
-  static const Color background = Color(0xFFF8FAFC); // Slate-50 (배경)
+  // 🎨 위시드롭 웹 디자인 팔레트 (HTML 랜딩과 동일)
+  static const Color primary = Color(0xFF5048E5); // primary (#5048e5)
+  static const Color primaryDark = Color(0xFF3E38B3); // primary-dark
+  static const Color background = Color(0xFFF8F9FC); // background-light
   static const Color white = Colors.white;
 
-  static const Color textHeading = Color(0xFF1E293B); // Slate-900 (진한 제목)
-  static const Color textBody = Color(0xFF64748B); // Slate-500 (본문)
-  static const Color borderColor = Color(0xFFE2E8F0); // Slate-200 (테두리)
+  static const Color textHeading = Color(0xFF1E1B4B); // text-main (진한 인디고)
+  static const Color textBody = Color(0xFF64748B); // text-muted (Slate 500)
+  static const Color borderColor = Color(0xFFE2E8F0); // Slate-200
 
   static const Color kakaoYellow = Color(0xFFFEE500);
 
@@ -41,6 +42,13 @@ class AppTheme {
   static ThemeData lightTheme = ThemeData(
     scaffoldBackgroundColor: background,
     primaryColor: primary,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: primary,
+      primary: primary,
+      onPrimary: white,
+      surface: white,
+      onSurface: textHeading,
+    ),
     textTheme: textTheme,
     useMaterial3: true,
     fontFamily: GoogleFonts.plusJakartaSans().fontFamily,
@@ -81,9 +89,10 @@ class AppTheme {
         backgroundColor: primary,
         foregroundColor: white,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shadowColor: primary.withOpacity(0.25),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.symmetric(vertical: 16),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     ),
   );

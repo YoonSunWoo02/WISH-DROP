@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/nickname_code_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../friend/data/friend_repository.dart';
@@ -58,18 +59,18 @@ class _FriendInvitePageState extends State<FriendInvitePage> {
         child: _isLoading
             ? const CircularProgressIndicator()
             : _inviter == null
-                ? const Text('유효하지 않은 초대 링크예요')
-                : _done
-                    ? _DoneView(
-                        nickname: _inviter!.nickname,
-                        onConfirm: () => Navigator.pop(context),
-                      )
-                    : _InviteView(
-                        inviter: _inviter!,
-                        isSending: _isSending,
-                        onAccept: _accept,
-                        onLater: () => Navigator.pop(context),
-                      ),
+            ? const Text('유효하지 않은 초대 링크예요')
+            : _done
+            ? _DoneView(
+                nickname: _inviter!.nickname,
+                onConfirm: () => Navigator.pop(context),
+              )
+            : _InviteView(
+                inviter: _inviter!,
+                isSending: _isSending,
+                onAccept: _accept,
+                onLater: () => Navigator.pop(context),
+              ),
       ),
     );
   }
@@ -100,8 +101,7 @@ class _InviteView extends StatelessWidget {
             backgroundImage: inviter.avatarUrl != null
                 ? NetworkImage(inviter.avatarUrl!)
                 : null,
-            backgroundColor:
-                Theme.of(context).primaryColor.withOpacity(0.1),
+            backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
             child: inviter.avatarUrl == null
                 ? Text(
                     inviter.nickname[0],
@@ -113,22 +113,17 @@ class _InviteView extends StatelessWidget {
           Text(
             '${inviter.nickname}님이\n친구를 신청했어요!',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
-            inviter.friendCode,
+            formatNicknameCode(inviter.nickname, inviter.friendCode),
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 36),
           ElevatedButton(
             onPressed: isSending ? null : onAccept,
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(220, 52),
-            ),
+            style: ElevatedButton.styleFrom(minimumSize: const Size(220, 52)),
             child: isSending
                 ? const SizedBox(
                     width: 20,
@@ -138,18 +133,12 @@ class _InviteView extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                : const Text(
-                    '친구 수락하기',
-                    style: TextStyle(fontSize: 16),
-                  ),
+                : const Text('친구 수락하기', style: TextStyle(fontSize: 16)),
           ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: onLater,
-            child: const Text(
-              '나중에',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text('나중에', style: TextStyle(color: Colors.grey)),
           ),
         ],
       ),
@@ -173,23 +162,13 @@ class _DoneView extends StatelessWidget {
         Text(
           '$nickname님에게\n친구 요청을 보냈어요!',
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        const Text(
-          '상대방이 수락하면 친구가 돼요',
-          style: TextStyle(color: Colors.grey),
-        ),
+        const Text('상대방이 수락하면 친구가 돼요', style: TextStyle(color: Colors.grey)),
         const SizedBox(height: 32),
-        ElevatedButton(
-          onPressed: onConfirm,
-          child: const Text('확인'),
-        ),
+        ElevatedButton(onPressed: onConfirm, child: const Text('확인')),
       ],
     );
   }
 }
-

@@ -4,8 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
 import '../features/friend/presentation/friend_invite_page.dart';
+import '../profile/presentation/pages/edit_profile_page.dart';
+import '../profile/presentation/pages/notification_settings_page.dart';
 import '../features/friend/presentation/friend_page.dart';
-import '../profile/presentation/pages/my_info_page.dart';
+import 'pages/my_info_page_web.dart';
 import '../features/auth/presentation/pages/signup_page.dart';
 import '../features/wish/data/project_model.dart';
 import '../features/wish/presentation/pages/create_wish_page.dart';
@@ -32,12 +34,16 @@ class AppWeb extends StatelessWidget {
       final isSignupRoute = state.matchedLocation == '/signup';
       final isInviteRoute = state.matchedLocation.startsWith('/friend-invite');
       final isProjectRoute = state.matchedLocation.startsWith('/project/');
+      final isEditProfileRoute = state.matchedLocation == '/edit-profile';
+      final isSettingsRoute = state.matchedLocation == '/notification-settings';
 
       if (!isLoggedIn &&
           !isLoginRoute &&
           !isSignupRoute &&
           !isInviteRoute &&
-          !isProjectRoute) {
+          !isProjectRoute &&
+          !isEditProfileRoute &&
+          !isSettingsRoute) {
         return '/login';
       }
       if (isLoggedIn && isLoginRoute) {
@@ -56,31 +62,13 @@ class AppWeb extends StatelessWidget {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (_, __) => const LoginPageWeb(),
-      ),
-      GoRoute(
-        path: '/signup',
-        builder: (_, __) => const SignUpPage(),
-      ),
+      GoRoute(path: '/login', builder: (_, __) => const LoginPageWeb()),
+      GoRoute(path: '/signup', builder: (_, __) => const SignUpPage()),
       GoRoute(
         path: '/friend-invite',
         builder: (context, state) {
           final token = state.uri.queryParameters['token'] ?? '';
           return FriendInvitePage(token: token);
-        },
-      ),
-      GoRoute(
-        path: '/project/:id',
-        builder: (context, state) {
-          final id = int.tryParse(state.pathParameters['id'] ?? '');
-          if (id == null) {
-            return const Scaffold(
-              body: Center(child: Text('잘못된 링크입니다.')),
-            );
-          }
-          return ProjectDetailPageWeb(projectId: id);
         },
       ),
       GoRoute(
@@ -115,34 +103,58 @@ class AppWeb extends StatelessWidget {
           return DonationSuccessPageWeb(projectId: projectId);
         },
       ),
+      GoRoute(path: '/create', builder: (_, __) => const CreateWishPage()),
       GoRoute(
-        path: '/create',
-        builder: (_, __) => const CreateWishPage(),
+        path: '/edit-profile',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final nickname = extra?['nickname'] as String? ?? '';
+          final friendCode = extra?['friendCode'] as String? ?? '';
+          final avatarUrl = extra?['avatarUrl'] as String?;
+          return EditProfilePage(
+            currentNickname: nickname,
+            currentFriendCode: friendCode,
+            currentAvatarUrl: avatarUrl,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/notification-settings',
+        builder: (_, __) => const NotificationSettingsPage(),
+      ),
+      GoRoute(
+        path: '/project/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
+          if (id == null) {
+            return const Scaffold(body: Center(child: Text('잘못된 링크입니다.')));
+          }
+          return ProjectDetailPageWeb(projectId: id);
+        },
       ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
-        builder: (context, state, child) => ShellWeb(
-          currentPath: state.uri.path,
-          child: child,
-        ),
+        builder: (context, state, child) =>
+            ShellWeb(currentPath: state.uri.path, child: child),
         routes: [
           GoRoute(
             path: '/',
-            pageBuilder: (_, state) => const NoTransitionPage(
-              child: HomePageWeb(),
-            ),
+            pageBuilder: (_, state) =>
+                const NoTransitionPage(child: HomePageWeb()),
           ),
           GoRoute(
             path: '/friend',
-            pageBuilder: (_, state) => const NoTransitionPage(
-              child: FriendPage(),
-            ),
+            pageBuilder: (_, state) =>
+                const NoTransitionPage(child: FriendPage()),
+          ),
+          GoRoute(
+            path: '/explore',
+            pageBuilder: (_, state) =>
+                const NoTransitionPage(child: HomePageWeb()),
           ),
           GoRoute(
             path: '/my-info',
-            pageBuilder: (_, state) => const NoTransitionPage(
-              child: MyInfoPage(),
-            ),
+            pageBuilder: (_, state) => NoTransitionPage(child: MyInfoPageWeb()),
           ),
         ],
       ),

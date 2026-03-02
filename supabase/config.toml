@@ -385,7 +385,8 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.portone-webhook]
 enabled = true
-verify_jwt = true
+# PortOne는 JWT를 보내지 않으므로 false (서명 검증은 웹훅 내부에서 진행 권장)
+verify_jwt = false
 import_map = "./functions/portone-webhook/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

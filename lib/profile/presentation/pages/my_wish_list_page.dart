@@ -12,8 +12,17 @@ import '../../../features/wish/presentation/pages/project_detail_page.dart';
 const _kWishSearchHistoryKey = 'search_history_wish';
 
 /// 내 위시 기록 — 월별 헤더 + 검색(제목) + 검색 기록 + 상태 필터 + 카드
+/// [embeddedInScroll] true이면 Scaffold/AppBar 없이 부모 스크롤에 포함되어 렌더링
+/// [onWishTap] 제공 시 해당 콜백 사용 (웹에서 GoRouter용). Future 반환 시 돌아온 뒤 _loadAll 호출
 class MyWishListPage extends StatefulWidget {
-  const MyWishListPage({super.key});
+  final bool embeddedInScroll;
+  final Future<void> Function(ProjectModel project)? onWishTap;
+
+  const MyWishListPage({
+    super.key,
+    this.embeddedInScroll = false,
+    this.onWishTap,
+  });
 
   @override
   State<MyWishListPage> createState() => _MyWishListPageState();
@@ -21,7 +30,10 @@ class MyWishListPage extends StatefulWidget {
 
 class _MyWishListPageState extends State<MyWishListPage> {
   final _repo = ProjectRepository();
-  final _searchHistory = SearchHistoryHelper(storageKey: _kWishSearchHistoryKey, maxItems: 10);
+  final _searchHistory = SearchHistoryHelper(
+    storageKey: _kWishSearchHistoryKey,
+    maxItems: 10,
+  );
   final _searchController = TextEditingController();
 
   List<ProjectModel> _wishes = [];
@@ -59,10 +71,11 @@ class _MyWishListPageState extends State<MyWishListPage> {
     try {
       await _repo.checkAndCompleteProjects();
       final list = await _repo.getMyWishes();
-      if (mounted) setState(() {
-        _wishes = list;
-        _isLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _wishes = list;
+          _isLoading = false;
+        });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -116,12 +129,56 @@ class _MyWishListPageState extends State<MyWishListPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embeddedInScroll) {
+      return Container(
+        color: AppTheme.background,
+        child: _isLoading
+            ? const Padding(
+                padding: EdgeInsets.all(48),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                    child: Text(
+                      '만든 위시',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textHeading,
+                      ),
+                    ),
+                  ),
+                  _buildSearchBar(),
+                  _buildSearchHistory(),
+                  _buildStatusChips(),
+                  if (_wishes.isEmpty)
+                    SizedBox(height: 160, child: _buildEmpty())
+                  else if (_filteredWishes.isEmpty)
+                    SizedBox(height: 160, child: _buildNoResults())
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: _buildMonthSections(),
+                      ),
+                    ),
+                ],
+              ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('만든 위시'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('만든 위시'), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -134,14 +191,17 @@ class _MyWishListPageState extends State<MyWishListPage> {
                   child: _wishes.isEmpty
                       ? _buildEmpty()
                       : _filteredWishes.isEmpty
-                          ? _buildNoResults()
-                          : RefreshIndicator(
-                              onRefresh: _loadAll,
-                              child: ListView(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                children: _buildMonthSections(),
-                              ),
+                      ? _buildNoResults()
+                      : RefreshIndicator(
+                          onRefresh: _loadAll,
+                          child: ListView(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
                             ),
+                            children: _buildMonthSections(),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -173,7 +233,10 @@ class _MyWishListPageState extends State<MyWishListPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
         ),
       ),
     );
@@ -200,9 +263,9 @@ class _MyWishListPageState extends State<MyWishListPage> {
                   deleteIcon: const Icon(Icons.close, size: 16),
                   onDeleted: () => _removeHistoryItem(term),
                   onPressed: () {
-                  _searchController.text = term;
-                  setState(() => _query = term);
-                },
+                    _searchController.text = term;
+                    setState(() => _query = term);
+                  },
                   backgroundColor: AppTheme.background,
                   side: BorderSide(color: AppTheme.borderColor),
                 ),
@@ -237,12 +300,20 @@ class _MyWishListPageState extends State<MyWishListPage> {
   Widget _statusChip(String label, String value) {
     final selected = _statusFilter == value;
     return FilterChip(
-      label: Text(label, style: TextStyle(fontSize: 13, color: selected ? Colors.white : AppTheme.textBody)),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          color: selected ? Colors.white : AppTheme.textBody,
+        ),
+      ),
       selected: selected,
       onSelected: (_) => setState(() => _statusFilter = value),
       selectedColor: AppTheme.primary,
       checkmarkColor: Colors.white,
-      side: BorderSide(color: selected ? AppTheme.primary : AppTheme.borderColor),
+      side: BorderSide(
+        color: selected ? AppTheme.primary : AppTheme.borderColor,
+      ),
     );
   }
 
@@ -307,12 +378,20 @@ class _MyWishListPageState extends State<MyWishListPage> {
               padding: const EdgeInsets.only(bottom: 12),
               child: _WishCard(
                 project: project,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ProjectDetailPage(project: project),
-                  ),
-                ).then((_) => _loadAll()),
+                onTap: () {
+                  if (widget.onWishTap != null) {
+                    widget.onWishTap!(project).then((_) {
+                      if (mounted) _loadAll();
+                    });
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProjectDetailPage(project: project),
+                      ),
+                    ).then((_) => _loadAll());
+                  }
+                },
               ),
             ),
           ),
@@ -360,7 +439,9 @@ class _WishCard extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: project.thumbnailUrl != null && project.thumbnailUrl!.isNotEmpty
+                child:
+                    project.thumbnailUrl != null &&
+                        project.thumbnailUrl!.isNotEmpty
                     ? Image.network(
                         project.thumbnailUrl!,
                         width: 64,
@@ -388,17 +469,17 @@ class _WishCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       '달성률 $rate%',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textBody,
-                      ),
+                      style: TextStyle(fontSize: 13, color: AppTheme.textBody),
                     ),
                   ],
                 ),
               ),
               if (isSuccess)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(999),
@@ -415,7 +496,10 @@ class _WishCard extends StatelessWidget {
                 )
               else if (isFail)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(999),
@@ -432,11 +516,16 @@ class _WishCard extends StatelessWidget {
                 )
               else
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+                    border: Border.all(
+                      color: AppTheme.primary.withOpacity(0.3),
+                    ),
                   ),
                   child: const Text(
                     '진행 중',
@@ -459,7 +548,11 @@ class _WishCard extends StatelessWidget {
       width: 64,
       height: 64,
       color: AppTheme.primary.withOpacity(0.12),
-      child: const Icon(Icons.card_giftcard_rounded, color: AppTheme.primary, size: 28),
+      child: const Icon(
+        Icons.card_giftcard_rounded,
+        color: AppTheme.primary,
+        size: 28,
+      ),
     );
   }
 }

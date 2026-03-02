@@ -1,7 +1,10 @@
 // lib/profile/presentation/pages/my_info_page.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/nickname_code_utils.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme.dart';
@@ -13,7 +16,10 @@ import 'notification_settings_page.dart';
 import 'support_page.dart';
 
 class MyInfoPage extends StatefulWidget {
-  const MyInfoPage({super.key});
+  /// 웹 쉘에서 AppBar 숨김 (헤더 중복 방지)
+  final bool hideAppBar;
+
+  const MyInfoPage({super.key, this.hideAppBar = false});
 
   @override
   State<MyInfoPage> createState() => _MyInfoPageState();
@@ -48,10 +54,14 @@ class _MyInfoPageState extends State<MyInfoPage> {
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
-    );
+    if (kIsWeb) {
+      context.go('/login');
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    }
   }
 
   Future<void> _showDeleteAccountDialog() async {
@@ -59,7 +69,10 @@ class _MyInfoPageState extends State<MyInfoPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('회원 탈퇴', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          '회원 탈퇴',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: const Text(
           '탈퇴하면 모든 위시와 후원 내역이 삭제되며\n복구할 수 없어요.\n\n정말 탈퇴하시겠어요?',
           style: TextStyle(height: 1.6),
@@ -71,8 +84,10 @@ class _MyInfoPageState extends State<MyInfoPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('탈퇴하기',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: const Text(
+              '탈퇴하기',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -101,12 +116,14 @@ class _MyInfoPageState extends State<MyInfoPage> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        title: const Text('내 정보'),
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        elevation: 0,
-      ),
+      appBar: widget.hideAppBar
+          ? null
+          : AppBar(
+              title: const Text('내 정보'),
+              centerTitle: true,
+              automaticallyImplyLeading: false,
+              elevation: 0,
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -147,7 +164,8 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const MyWishListPage()),
+                            builder: (_) => const MyWishListPage(),
+                          ),
                         ),
                       ),
                       _divider(),
@@ -157,7 +175,8 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const MyDonationPage()),
+                            builder: (_) => const MyDonationPage(),
+                          ),
                         ),
                       ),
                     ]),
@@ -174,7 +193,8 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const NotificationSettingsPage()),
+                            builder: (_) => const NotificationSettingsPage(),
+                          ),
                         ),
                       ),
                     ]),
@@ -191,9 +211,9 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const SupportPage(
-                                    initialTab: SupportTab.faq,
-                                  )),
+                            builder: (_) =>
+                                const SupportPage(initialTab: SupportTab.faq),
+                          ),
                         ),
                       ),
                       _divider(),
@@ -203,9 +223,10 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const SupportPage(
-                                    initialTab: SupportTab.contact,
-                                  )),
+                            builder: (_) => const SupportPage(
+                              initialTab: SupportTab.contact,
+                            ),
+                          ),
                         ),
                       ),
                       _divider(),
@@ -215,9 +236,9 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const SupportPage(
-                                    initialTab: SupportTab.terms,
-                                  )),
+                            builder: (_) =>
+                                const SupportPage(initialTab: SupportTab.terms),
+                          ),
                         ),
                       ),
                       _divider(),
@@ -227,9 +248,10 @@ class _MyInfoPageState extends State<MyInfoPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const SupportPage(
-                                    initialTab: SupportTab.privacy,
-                                  )),
+                            builder: (_) => const SupportPage(
+                              initialTab: SupportTab.privacy,
+                            ),
+                          ),
                         ),
                       ),
                     ]),
@@ -261,7 +283,9 @@ class _MyInfoPageState extends State<MyInfoPage> {
                     Text(
                       'Wish Drop v1.0.0',
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade400),
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                     const SizedBox(height: 32),
                   ],
@@ -297,8 +321,7 @@ class _MyInfoPageState extends State<MyInfoPage> {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(icon,
-          color: isDestructive ? Colors.red : AppTheme.primary),
+      leading: Icon(icon, color: isDestructive ? Colors.red : AppTheme.primary),
       title: Text(
         title,
         style: TextStyle(
@@ -306,8 +329,11 @@ class _MyInfoPageState extends State<MyInfoPage> {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios,
-          size: 16, color: Colors.grey),
+      trailing: const Icon(
+        Icons.arrow_forward_ios,
+        size: 16,
+        color: Colors.grey,
+      ),
       onTap: onTap,
     );
   }
@@ -380,6 +406,7 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
     final nickname = widget.nickname;
     final friendCode = widget.friendCode;
     final avatarUrl = widget.avatarUrl;
+    final codeDisplay = formatNicknameCode(nickname, friendCode);
 
     return AnimatedBuilder(
       animation: _controller,
@@ -407,15 +434,17 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                     CircleAvatar(
                       radius: 44,
                       backgroundColor: AppTheme.primary.withOpacity(0.1),
-                      backgroundImage:
-                          avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      backgroundImage: avatarUrl != null
+                          ? NetworkImage(avatarUrl)
+                          : null,
                       child: avatarUrl == null
                           ? Text(
                               nickname.isNotEmpty ? nickname[0] : '?',
                               style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primary),
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primary,
+                              ),
                             )
                           : null,
                     ),
@@ -428,25 +457,28 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                 child: Text(
                   nickname,
                   style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textHeading),
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textHeading,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
-              if (friendCode.isNotEmpty)
+              if (codeDisplay != nickname)
                 Opacity(
                   opacity: _codeOpacity.value,
                   child: GestureDetector(
                     onTap: () {
-                      Clipboard.setData(ClipboardData(text: friendCode));
+                      Clipboard.setData(ClipboardData(text: codeDisplay));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('친구 코드가 복사됐어요!')),
                       );
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.background,
                         borderRadius: BorderRadius.circular(999),
@@ -455,17 +487,25 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.tag,
-                              size: 13, color: AppTheme.textBody),
+                          const Icon(
+                            Icons.tag,
+                            size: 13,
+                            color: AppTheme.textBody,
+                          ),
                           const SizedBox(width: 4),
                           Text(
-                            friendCode,
+                            codeDisplay,
                             style: const TextStyle(
-                                fontSize: 13, color: AppTheme.textBody),
+                              fontSize: 13,
+                              color: AppTheme.textBody,
+                            ),
                           ),
                           const SizedBox(width: 6),
-                          const Icon(Icons.copy,
-                              size: 12, color: AppTheme.textBody),
+                          const Icon(
+                            Icons.copy,
+                            size: 12,
+                            color: AppTheme.textBody,
+                          ),
                         ],
                       ),
                     ),
@@ -481,15 +521,17 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppTheme.borderColor),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                     child: const Text(
                       '프로필 수정',
                       style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textHeading),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textHeading,
+                      ),
                     ),
                   ),
                 ),
@@ -515,10 +557,11 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         label,
         style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textBody,
-            letterSpacing: 0.5),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textBody,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

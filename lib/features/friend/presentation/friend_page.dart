@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/nickname_code_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -41,6 +42,7 @@ class _FriendPageState extends State<FriendPage> {
 
   Future<void> _loadAll() async {
     debugPrint('[FriendPage] _loadAll start');
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
@@ -49,6 +51,7 @@ class _FriendPageState extends State<FriendPage> {
         _repo.fetchSentPendingRequests(),
         _repo.fetchMyProfile(),
       ]);
+      if (!mounted) return;
       setState(() {
         _friends = results[0] as List<FriendModel>;
         _requests = results[1] as List<FriendRequestModel>;
@@ -61,25 +64,26 @@ class _FriendPageState extends State<FriendPage> {
       }
     }
     debugPrint(
-        '[FriendPage] _loadAll done, friends=${_friends.length}, requests=${_requests.length}, sent=${_sentRequests.length}, hasProfile=${_myProfile != null}');
+      '[FriendPage] _loadAll done, friends=${_friends.length}, requests=${_requests.length}, sent=${_sentRequests.length}, hasProfile=${_myProfile != null}',
+    );
   }
 
   Future<void> _cancelSentRequest(SentRequestModel sent) async {
     await _repo.cancelSentRequest(sent.id);
     _loadAll();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('요청을 취소했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('요청을 취소했어요')));
     }
   }
 
   Future<void> _addFriendByCode() async {
     final code = _codeController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('친구 코드를 입력해 주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('친구 코드를 입력해 주세요')));
       return;
     }
     setState(() => _codeSending = true);
@@ -87,22 +91,22 @@ class _FriendPageState extends State<FriendPage> {
       final user = await _repo.findUserByCode(code);
       if (!mounted) return;
       if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('해당 코드의 사용자를 찾을 수 없어요')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('해당 코드의 사용자를 찾을 수 없어요')));
         return;
       }
       final status = await _repo.getFriendshipStatus(user.id);
       if (status == 'accepted') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미 친구예요')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이미 친구예요')));
         return;
       }
       if (status == 'pending') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('이미 친구 요청을 보냈어요 (대기 중)')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이미 친구 요청을 보냈어요 (대기 중)')));
         return;
       }
       await _repo.sendFriendRequest(user.id);
@@ -134,9 +138,9 @@ class _FriendPageState extends State<FriendPage> {
     await _repo.rejectFriendRequest(req.id);
     _loadAll();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('요청을 거절했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('요청을 거절했어요')));
     }
   }
 
@@ -145,9 +149,7 @@ class _FriendPageState extends State<FriendPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('친구 삭제'),
-        content: Text(
-          '${friend.nickname}님과 친구 관계를 끊을까요?',
-        ),
+        content: Text('${friend.nickname}님과 친구 관계를 끊을까요?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -165,9 +167,9 @@ class _FriendPageState extends State<FriendPage> {
     await _repo.removeFriend(friend.friendshipId);
     _loadAll();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('친구를 삭제했어요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('친구를 삭제했어요')));
     }
   }
 
@@ -198,15 +200,19 @@ class _FriendPageState extends State<FriendPage> {
                         onReject: () => _reject(req),
                       ),
                     ),
-                  if (_requests.isEmpty)
-                    const _ReceivedRequestsEmptyHint(),
+                  if (_requests.isEmpty) const _ReceivedRequestsEmptyHint(),
                   const SizedBox(height: 8),
                   if (_myProfile != null)
                     _MyCodeTile(
                       profile: _myProfile!,
                       onCopy: () {
                         Clipboard.setData(
-                          ClipboardData(text: _myProfile!.friendCode),
+                          ClipboardData(
+                            text: formatNicknameCode(
+                              _myProfile!.nickname,
+                              _myProfile!.friendCode,
+                            ),
+                          ),
                         );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('내 코드를 복사했어요')),
@@ -294,7 +300,10 @@ class _AddFriendByCodeCard extends StatelessWidget {
                   controller: controller,
                   decoration: InputDecoration(
                     hintText: '닉네임#1234',
-                    hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                    hintStyle: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 14,
@@ -373,7 +382,7 @@ class _MyCodeTile extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           Text(
-            profile.friendCode,
+            formatNicknameCode(profile.nickname, profile.friendCode),
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
@@ -478,7 +487,7 @@ class _SentRequestCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  sent.receiverCode,
+                  formatNicknameCode(sent.receiverNickname, sent.receiverCode),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 4),
@@ -543,7 +552,10 @@ class _RequestCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  request.requesterCode,
+                  formatNicknameCode(
+                    request.requesterNickname,
+                    request.requesterCode,
+                  ),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -551,10 +563,7 @@ class _RequestCard extends StatelessWidget {
           ),
           TextButton(
             onPressed: onReject,
-            child: const Text(
-              '거절',
-              style: TextStyle(color: Colors.grey),
-            ),
+            child: const Text('거절', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: onAccept,
@@ -574,28 +583,20 @@ class _FriendTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onRemove;
 
-  const _FriendTile({
-    required this.friend,
-    required this.onTap,
-    this.onRemove,
-  });
+  const _FriendTile({required this.friend, required this.onTap, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: _Avatar(
-        avatarUrl: friend.avatarUrl,
-        nickname: friend.nickname,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: _Avatar(avatarUrl: friend.avatarUrl, nickname: friend.nickname),
       title: Text(
         friend.nickname,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
-        friend.friendCode,
+        formatNicknameCode(friend.nickname, friend.friendCode),
         style: const TextStyle(fontSize: 12, color: Colors.grey),
       ),
       trailing: Row(
@@ -603,8 +604,7 @@ class _FriendTile extends StatelessWidget {
         children: [
           if (friend.activeWishCount > 0) ...[
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(999),
@@ -689,8 +689,7 @@ class _Avatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return CircleAvatar(
       radius: 22,
-      backgroundImage:
-          avatarUrl != null ? NetworkImage(avatarUrl!) : null,
+      backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl!) : null,
       backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
       child: avatarUrl == null
           ? Text(
@@ -704,4 +703,3 @@ class _Avatar extends StatelessWidget {
     );
   }
 }
-
