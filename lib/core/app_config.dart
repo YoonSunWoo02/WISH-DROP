@@ -20,4 +20,8 @@ class AppConfig {
   /// 예: https://yourdomain.com/invite
   static String get inviteLinkBaseUrl =>
       (dotenv.env['INVITE_LINK_BASE_URL'] ?? '').replaceAll(RegExp(r'/$'), '');
+
+  /// 앱 스토어 / 플레이스토어 링크 (선택)
+  static String get appStoreUrl => dotenv.env['APP_STORE_URL'] ?? '';
+  static String get playStoreUrl => dotenv.env['PLAY_STORE_URL'] ?? '';
 }

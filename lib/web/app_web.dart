@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../features/friend/presentation/friend_invite_page.dart';
 import '../profile/presentation/pages/edit_profile_page.dart';
-import '../profile/presentation/pages/notification_settings_page.dart';
 import '../features/friend/presentation/friend_page.dart';
 import 'pages/my_info_page_web.dart';
 import '../features/auth/presentation/pages/signup_page.dart';
@@ -16,6 +15,7 @@ import 'pages/donation_success_page_web.dart';
 import 'pages/home_page_web.dart';
 import 'pages/login_page_web.dart';
 import 'pages/project_detail_page_web.dart';
+import 'pages/settings_page_web.dart';
 import 'shell_web.dart';
 
 /// 웹 전용 앱 — URL 기반 라우팅(GoRouter) + 반응형 레이아웃
@@ -118,10 +118,7 @@ class AppWeb extends StatelessWidget {
           );
         },
       ),
-      GoRoute(
-        path: '/notification-settings',
-        builder: (_, __) => const NotificationSettingsPage(),
-      ),
+      GoRoute(path: '/settings', builder: (_, __) => const SettingsPageWeb()),
       GoRoute(
         path: '/project/:id',
         builder: (context, state) {
@@ -146,11 +143,6 @@ class AppWeb extends StatelessWidget {
             path: '/friend',
             pageBuilder: (_, state) =>
                 const NoTransitionPage(child: FriendPage()),
-          ),
-          GoRoute(
-            path: '/explore',
-            pageBuilder: (_, state) =>
-                const NoTransitionPage(child: HomePageWeb()),
           ),
           GoRoute(
             path: '/my-info',

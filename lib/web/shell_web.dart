@@ -21,7 +21,7 @@ class _ShellWebState extends State<ShellWeb> {
 
   int get _selectedIndex {
     if (widget.currentPath.startsWith('/friend')) return 1;
-    if (widget.currentPath.startsWith('/explore')) return 2;
+    if (widget.currentPath.startsWith('/settings')) return 2;
     if (widget.currentPath.startsWith('/my-info')) return 3;
     if (widget.currentPath.startsWith('/project/')) return -1;
     return 0;
@@ -69,6 +69,89 @@ class _ShellWebState extends State<ShellWeb> {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: showSidebar ? null : _buildBottomNavBar(context),
+    );
+  }
+
+  Widget _buildBottomNavBar(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _bottomNavItem(
+                context,
+                index: 0,
+                icon: Icons.home,
+                label: '홈',
+                route: '/',
+              ),
+              _bottomNavItem(
+                context,
+                index: 1,
+                icon: Icons.group,
+                label: '친구',
+                route: '/friend',
+              ),
+              _bottomNavItem(
+                context,
+                index: 2,
+                icon: Icons.settings,
+                label: '설정',
+                route: '/settings',
+              ),
+              _bottomNavItem(
+                context,
+                index: 3,
+                icon: Icons.person,
+                label: '마이페이지',
+                route: '/my-info',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomNavItem(
+    BuildContext context, {
+    required int index,
+    required IconData icon,
+    required String label,
+    required String route,
+  }) {
+    final selected = _selectedIndex == index;
+    final color = selected ? AppTheme.primary : AppTheme.textBody;
+    return InkWell(
+      onTap: () => GoRouter.of(context).go(route),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -270,7 +353,7 @@ class _ShellWebState extends State<ShellWeb> {
               children: [
                 _navItem(context, 0, Icons.home, '홈'),
                 _navItem(context, 1, Icons.group, '친구'),
-                _navItem(context, 2, Icons.explore, '탐색'),
+                _navItem(context, 2, Icons.settings, '설정'),
                 _navItem(context, 3, Icons.person, '마이페이지'),
                 const SizedBox(height: 24),
                 const Padding(
@@ -326,7 +409,7 @@ class _ShellWebState extends State<ShellWeb> {
         : index == 1
         ? '/friend'
         : index == 2
-        ? '/explore'
+        ? '/settings'
         : '/my-info';
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),

@@ -256,8 +256,7 @@ class _MyInfoPageWebState extends State<MyInfoPageWeb> {
                         ),
                         const SizedBox(width: 12),
                         OutlinedButton(
-                          onPressed: () =>
-                              context.push('/notification-settings'),
+                          onPressed: () => context.push('/settings'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,

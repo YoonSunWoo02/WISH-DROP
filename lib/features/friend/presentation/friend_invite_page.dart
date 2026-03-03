@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../../core/nickname_code_utils.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/app_config.dart';
+import '../../../core/nickname_code_utils.dart';
 import '../../friend/data/friend_repository.dart';
 import '../../friend/data/profile_model.dart';
 
@@ -53,24 +56,118 @@ class _FriendInvitePageState extends State<FriendInvitePage> {
 
   @override
   Widget build(BuildContext context) {
+    final content = _isLoading
+        ? const CircularProgressIndicator()
+        : _inviter == null
+        ? const Text('유효하지 않은 초대 링크예요')
+        : _done
+        ? _DoneView(
+            nickname: _inviter!.nickname,
+            onConfirm: () => Navigator.pop(context),
+          )
+        : _InviteView(
+            inviter: _inviter!,
+            isSending: _isSending,
+            onAccept: _accept,
+            onLater: () => Navigator.pop(context),
+          );
+
+    if (!kIsWeb) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('친구 초대')),
+        body: Center(child: content),
+      );
+    }
+
+    // 웹에서는 먼저 "앱으로 보기 / 웹으로 계속" 선택 배너를 보여준다.
     return Scaffold(
       appBar: AppBar(title: const Text('친구 초대')),
-      body: Center(
-        child: _isLoading
-            ? const CircularProgressIndicator()
-            : _inviter == null
-            ? const Text('유효하지 않은 초대 링크예요')
-            : _done
-            ? _DoneView(
-                nickname: _inviter!.nickname,
-                onConfirm: () => Navigator.pop(context),
-              )
-            : _InviteView(
-                inviter: _inviter!,
-                isSending: _isSending,
-                onAccept: _accept,
-                onLater: () => Navigator.pop(context),
+      body: Column(
+        children: [
+          _WebInviteChoiceBar(token: widget.token),
+          Expanded(child: Center(child: content)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WebInviteChoiceBar extends StatelessWidget {
+  final String token;
+
+  const _WebInviteChoiceBar({required this.token});
+
+  Future<void> _openApp() async {
+    final uri = Uri.parse('wishdrop://friend?token=$token');
+    try {
+      await launchUrl(uri);
+    } catch (_) {}
+  }
+
+  Future<void> _openStore() async {
+    String url = '';
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      url = AppConfig.appStoreUrl;
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      url = AppConfig.playStoreUrl;
+    }
+    if (url.isEmpty) return;
+    final uri = Uri.parse(url);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF1F5F9),
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '어디에서 볼까요?',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '앱이 없으면 먼저 설치하거나, 그대로 모바일 웹에서 이어서 볼 수 있어요.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: _openStore,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('앱 설치하기'),
               ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _openApp,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('앱에서 열기'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
