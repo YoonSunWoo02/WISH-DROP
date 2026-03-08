@@ -97,11 +97,92 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
       final url = ProjectShareService.getProjectShareUrl(_project!.id);
       await Clipboard.setData(ClipboardData(text: url));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('링크가 복사되었습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('링크가 복사되었습니다.')));
       }
     }
+  }
+
+  void _showLoginForDonationSheet(BuildContext context, ProjectModel project) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(ctx).padding.bottom + 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Icon(Icons.verified_user, size: 48, color: AppTheme.primary),
+              const SizedBox(height: 16),
+              Text(
+                '안전한 결제와 후원 내역 저장을 위해\n3초 만에 로그인해 주세요!',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.notoSansKr(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textHeading,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '로그인 후 바로 후원 단계로 이동합니다.',
+                style: GoogleFonts.notoSansKr(
+                  fontSize: 14,
+                  color: AppTheme.textBody,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.push('/login?redirect=/project/${project.id}');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    '로그인하고 후원하기',
+                    style: GoogleFonts.notoSansKr(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   static bool _isMeaningfulText(String? s) {
@@ -193,7 +274,11 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
                 color: AppTheme.primary,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.card_giftcard, color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.card_giftcard,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -228,10 +313,7 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 7,
-          child: _buildMainContent(project, fmt),
-        ),
+        Expanded(flex: 7, child: _buildMainContent(project, fmt)),
         const SizedBox(width: 24),
         SizedBox(
           width: 280,
@@ -289,9 +371,9 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
   }
 
   Widget _imgPlaceholder() => Container(
-        color: Colors.grey.shade300,
-        child: Icon(Icons.image_outlined, size: 64, color: Colors.grey.shade400),
-      );
+    color: Colors.grey.shade300,
+    child: Icon(Icons.image_outlined, size: 64, color: Colors.grey.shade400),
+  );
 
   Widget _buildInfoCard(ProjectModel project) {
     final nickname = _creatorProfile?['nickname'] as String? ?? '사용자';
@@ -500,11 +582,11 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
                   if (user != null) {
                     context.push('/donation', extra: project);
                   } else {
-                    context.push('/login?redirect=/project/${project.id}');
+                    _showLoginForDonationSheet(context, project);
                   }
                 },
-                icon: const Icon(Icons.favorite, size: 18),
-                label: const Text('한 조각 선물하기'),
+                icon: const Icon(Icons.card_giftcard, size: 18),
+                label: const Text('🎁 후원하기'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -624,7 +706,8 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
           CircleAvatar(
             radius: 18,
             backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-            backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
+            backgroundImage:
+                avatarUrl != null && avatarUrl.toString().isNotEmpty
                 ? NetworkImage(avatarUrl.toString())
                 : null,
             child: avatarUrl == null || avatarUrl.toString().isEmpty

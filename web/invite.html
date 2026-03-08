@@ -2,24 +2,199 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Wish Drop 친구 초대</title>
-  <meta http-equiv="refresh" content="0;url=REPLACE_BY_SCRIPT">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    a { color: #4F46E5; }
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --primary-light: #E0E7FF;
+      --surface: #F8FAFC;
+      --text: #1E293B;
+      --text-muted: #64748B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Noto Sans KR', -apple-system, sans-serif;
+      background: linear-gradient(180deg, var(--primary-light) 0%, #fff 35%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(79, 70, 229, 0.12);
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+    .sub {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+    #loading {
+      padding: 1rem 0;
+    }
+    #loading .spinner {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 1rem;
+      border: 3px solid var(--primary-light);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #choices {
+      display: none;
+    }
+    #choices.visible {
+      display: block;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+      border: none;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    .btn-primary:hover, .btn-primary:focus {
+      background: var(--primary-hover);
+      color: #fff;
+    }
+    .btn-outline {
+      background: #fff;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+    }
+    .btn-outline:hover, .btn-outline:focus {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+    }
+    .btn-secondary:hover, .btn-secondary:focus {
+      background: #E2E8F0;
+      color: var(--text);
+    }
+    .btn.hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <p>Wish Drop 앱으로 이동합니다...</p>
-  <p><a id="link" href="#">앱에서 열기</a></p>
+  <div class="card">
+    <div class="logo">위시드롭</div>
+    <p class="sub">친구가 초대했어요</p>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>앱으로 이동합니다...</p>
+    </div>
+
+    <div id="choices">
+      <p class="sub" style="margin-bottom: 1.25rem;">아래에서 선택하세요</p>
+      <a id="btn-open-app" class="btn btn-primary" href="#">앱에서 열기</a>
+      <a id="btn-install-app" class="btn btn-outline" href="#">앱 설치하기</a>
+      <a id="btn-web" class="btn btn-secondary" href="#">웹으로 계속하기</a>
+    </div>
+  </div>
+
   <script>
-    var params = new URLSearchParams(location.search);
-    var token = params.get('token') || '';
-    var appUrl = 'wishdrop://friend?token=' + encodeURIComponent(token);
-    document.getElementById('link').href = appUrl;
-    document.querySelector('meta[http-equiv="refresh"]').content = '0;url=' + appUrl;
-    setTimeout(function() { location.href = appUrl; }, 500);
+    (function() {
+      // 빌드 시 치환: __INVITE_BASE_URL__, __APP_STORE_URL__, __PLAY_STORE_URL__
+      var INVITE_BASE_URL = '__INVITE_BASE_URL__';
+      var APP_STORE_URL = '__APP_STORE_URL__';
+      var PLAY_STORE_URL = '__PLAY_STORE_URL__';
+
+      var params = new URLSearchParams(location.search);
+      var token = params.get('token') || '';
+      var appUrl = 'wishdrop://friend?token=' + encodeURIComponent(token);
+
+      var loadingEl = document.getElementById('loading');
+      var choicesEl = document.getElementById('choices');
+      var btnOpenApp = document.getElementById('btn-open-app');
+      var btnInstallApp = document.getElementById('btn-install-app');
+      var btnWeb = document.getElementById('btn-web');
+
+      function isPlaceholder(s) {
+        return !s || s.indexOf('__') === 0;
+      }
+
+      function hasStoreUrls() {
+        return !isPlaceholder(APP_STORE_URL) || !isPlaceholder(PLAY_STORE_URL);
+      }
+
+      function getStoreUrl() {
+        var ua = navigator.userAgent || '';
+        if (/iPhone|iPad|iPod/i.test(ua) && !isPlaceholder(APP_STORE_URL)) return APP_STORE_URL;
+        if (/Android/i.test(ua) && !isPlaceholder(PLAY_STORE_URL)) return PLAY_STORE_URL;
+        if (!isPlaceholder(APP_STORE_URL)) return APP_STORE_URL;
+        if (!isPlaceholder(PLAY_STORE_URL)) return PLAY_STORE_URL;
+        return '';
+      }
+
+      function getWebUrl() {
+        var base = INVITE_BASE_URL;
+        if (isPlaceholder(base)) base = location.origin;
+        var sep = base.slice(-1) === '/' ? '' : '/';
+        return base + sep + 'friend-invite?token=' + encodeURIComponent(token);
+      }
+
+      btnOpenApp.href = appUrl;
+      btnWeb.href = getWebUrl();
+
+      if (!hasStoreUrls()) {
+        btnInstallApp.classList.add('hidden');
+      } else {
+        var storeUrl = getStoreUrl();
+        if (storeUrl) btnInstallApp.href = storeUrl;
+        else btnInstallApp.classList.add('hidden');
+      }
+
+      // 0.5초 후 딥링크 시도
+      setTimeout(function() {
+        window.location.href = appUrl;
+      }, 500);
+
+      // 2.5초 후에도 페이지가 보이면(앱 미설치) 선택지 표시
+      setTimeout(function() {
+        loadingEl.style.display = 'none';
+        choicesEl.classList.add('visible');
+      }, 2500);
+    })();
   </script>
 </body>
 </html>

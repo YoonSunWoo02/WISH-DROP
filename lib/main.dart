@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk_share/kakao_flutter_sdk_share.dart';
 import 'core/app_config.dart';
 import 'core/theme.dart';
-import 'features/auth/presentation/pages/login_page.dart';
 import 'features/friend/presentation/friend_invite_page.dart';
 import 'features/wish/data/project_repository.dart';
+import 'features/wish/presentation/pages/guest_home_page.dart';
 import 'features/wish/presentation/pages/home_page.dart';
 import 'web/app_web.dart';
 
@@ -108,9 +108,9 @@ class MyApp extends StatelessWidget {
       title: 'Wish Drop',
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
-      // 로그인 상태에 따라 첫 화면 결정
+      // 비로그인: 구경하기(게스트 홈) / 로그인: 친구 위시 피드
       home: Supabase.instance.client.auth.currentUser == null
-          ? const LoginPage()
+          ? const GuestHomePage()
           : const HomePage(),
       routes: {
         '/friend-invite': (context) {

@@ -209,6 +209,88 @@ class DonationRepository {
     }
   }
 
+  /// 티커용: 최근 후원 내역 (donor_nickname, creator_nickname, project_title, amount)
+  Future<List<Map<String, dynamic>>> getRecentDonationsForTicker({
+    int limit = 15,
+  }) async {
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select('id, user_id, project_id, amount, message, created_at')
+          .order('created_at', ascending: false)
+          .limit(limit * 2);
+
+      final list = List<Map<String, dynamic>>.from(response);
+      if (list.isEmpty) return [];
+
+      final projectIds = list
+          .map((d) => d['project_id'] as int?)
+          .whereType<int>()
+          .toSet()
+          .toList();
+      final userIds = list
+          .map((d) => d['user_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+
+      final projectsRes = await _supabase
+          .from('projects')
+          .select('id, title, creator_id')
+          .inFilter('id', projectIds);
+      final projects = {
+        for (final p in projectsRes as List)
+          p['id'] as int: p as Map<String, dynamic>,
+      };
+
+      final creatorIds = projects.values
+          .map((p) => p['creator_id'] as String?)
+          .whereType<String>()
+          .toSet()
+          .toList();
+      final allIds = <dynamic>{...userIds, ...creatorIds}.toList();
+      if (allIds.isEmpty) return _tickerRows(list, projects, {});
+
+      final profilesRes = await _supabase
+          .from('profiles')
+          .select('id, nickname')
+          .inFilter('id', allIds);
+      final profiles = {
+        for (final x in profilesRes as List)
+          x['id'] as String: x as Map<String, dynamic>,
+      };
+
+      final rows = _tickerRows(list, projects, profiles);
+      return rows.take(limit).toList();
+    } catch (e) {
+      debugPrint('getRecentDonationsForTicker Error: $e');
+      return [];
+    }
+  }
+
+  static List<Map<String, dynamic>> _tickerRows(
+    List<Map<String, dynamic>> list,
+    Map<int, Map<String, dynamic>> projects,
+    Map<String, Map<String, dynamic>> profiles,
+  ) {
+    final rows = <Map<String, dynamic>>[];
+    for (final d in list) {
+      final pid = d['project_id'] as int?;
+      final uid = d['user_id'] as String?;
+      final p = pid != null ? projects[pid] : null;
+      final creatorId = p?['creator_id'] as String?;
+      final donorProfile = uid != null ? profiles[uid] : null;
+      final creatorProfile = creatorId != null ? profiles[creatorId] : null;
+      rows.add({
+        'donor_nickname': donorProfile?['nickname'] ?? '익명',
+        'creator_nickname': creatorProfile?['nickname'] ?? '누군가',
+        'project_title': p?['title'] ?? '위시',
+        'amount': d['amount'] ?? 0,
+      });
+    }
+    return rows;
+  }
+
   /// 특정 프로젝트의 후원 내역 (참여한 친구들)
   Future<List<Map<String, dynamic>>> getDonationsForProject(
     int projectId,

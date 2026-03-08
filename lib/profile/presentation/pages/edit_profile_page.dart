@@ -53,28 +53,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
         suffix = part;
       }
     }
+    
+    // 이 닉네임으로 시작하는(포함하는) 전체 코드를 한 번에 가져와서 메모리 상에서 비교
+    final res = await Supabase.instance.client
+        .from('profiles')
+        .select('friend_code')
+        .like('friend_code', '$nickname#%');
+    
+    final existingCodes = (res as List).map((e) => e['friend_code'] as String).toSet();
+    
     if (suffix != null) {
       final candidate = '$nickname#$suffix';
-      final res = await Supabase.instance.client
-          .from('profiles')
-          .select('id')
-          .eq('friend_code', candidate)
-          .neq('id', userId)
-          .maybeSingle();
-      if (res == null) return candidate;
+      if (!existingCodes.contains(candidate)) {
+        return candidate;
+      }
     }
+    
     final rnd = Random();
     for (var i = 0; i < 30; i++) {
       final len = 4 + (i ~/ 15); // 4자리 후 15번 실패 시 5자리
       final num = (len == 4) ? 1000 + rnd.nextInt(9000) : 10000 + rnd.nextInt(90000);
       final newCode = num.toString().padLeft(len, '0');
       final candidate = '$nickname#$newCode';
-      final res = await Supabase.instance.client
-          .from('profiles')
-          .select('id')
-          .eq('friend_code', candidate)
-          .maybeSingle();
-      if (res == null) return candidate;
+      
+      if (!existingCodes.contains(candidate)) {
+        return candidate;
+      }
     }
     return '$nickname#${1000 + rnd.nextInt(9000)}';
   }

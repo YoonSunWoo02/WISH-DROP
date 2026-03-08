@@ -6,6 +6,7 @@ import 'package:wish_drop/core/theme.dart';
 import 'package:wish_drop/features/wish/data/project_model.dart';
 import 'package:wish_drop/features/wish/data/project_repository.dart';
 import 'package:wish_drop/features/wish/data/project_share_service.dart';
+import 'package:wish_drop/features/auth/presentation/pages/login_page.dart';
 import 'package:wish_drop/features/donation/presentation/pages/donation_input_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
@@ -33,9 +34,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _gaugeAnimation = Tween<double>(begin: 0, end: targetProgress).animate(
-      CurvedAnimation(parent: _gaugeController, curve: Curves.easeOut),
-    );
+    _gaugeAnimation = Tween<double>(
+      begin: 0,
+      end: targetProgress,
+    ).animate(CurvedAnimation(parent: _gaugeController, curve: Curves.easeOut));
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _gaugeController.forward();
     });
@@ -57,6 +59,88 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
     } finally {
       if (mounted) setState(() => _isChecking = false);
     }
+  }
+
+  void _showLoginForDonationSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.only(
+          left: 24,
+          right: 24,
+          top: 24,
+          bottom: MediaQuery.of(ctx).padding.bottom + 24,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Icon(
+                Icons.verified_user,
+                size: 48,
+                color: AppTheme.primary,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '안전한 결제와 후원 내역 저장을 위해\n3초 만에 로그인해 주세요!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textHeading,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '로그인 후 바로 후원 단계로 이동합니다.',
+                style: TextStyle(fontSize: 14, color: AppTheme.textBody),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      ctx,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    '로그인하고 후원하기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteProject(BuildContext context) async {
@@ -97,13 +181,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
       await doDelete();
       if (context.mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("위시리스트가 삭제되었습니다.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("위시리스트가 삭제되었습니다.")));
       }
     } catch (e) {
       final errStr = e.toString().toLowerCase();
-      final isNetworkError = errStr.contains('connection') ||
+      final isNetworkError =
+          errStr.contains('connection') ||
           errStr.contains('abort') ||
           errStr.contains('socket');
       if (!isNetworkError) {
@@ -111,7 +196,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
           final msg = errStr.contains('foreign key')
               ? '후원 내역이 있어 삭제할 수 없습니다. (관리자: donations CASCADE 설정 필요)'
               : '삭제 실패: $e';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         }
         return;
       }
@@ -126,16 +213,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
         await doDelete();
         if (context.mounted) {
           Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("위시리스트가 삭제되었습니다.")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("위시리스트가 삭제되었습니다.")));
         }
       } catch (e2) {
         if (context.mounted) {
           final msg = e2.toString().toLowerCase().contains('foreign key')
               ? '후원 내역이 있어 삭제할 수 없습니다. (관리자: donations CASCADE 설정 필요)'
               : '삭제 실패: $e2';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         }
       }
     }
@@ -146,9 +235,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
       await ProjectShareService.shareProject(_project);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('공유 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('공유 실패: $e')));
       }
     }
   }
@@ -288,7 +377,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
                         width: 160,
                         height: 160,
                         child: CustomPaint(
-                          painter: CircularGaugePainter(progress: animatedProgress),
+                          painter: CircularGaugePainter(
+                            progress: animatedProgress,
+                          ),
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -386,13 +477,20 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              DonationInputPage(project: _project),
-                        ),
-                      ),
+                      onPressed: () {
+                        final user = Supabase.instance.client.auth.currentUser;
+                        if (user != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  DonationInputPage(project: _project),
+                            ),
+                          );
+                        } else {
+                          _showLoginForDonationSheet(context);
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,
                         foregroundColor: Colors.white,
@@ -404,10 +502,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage>
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.volunteer_activism, size: 20),
+                          Icon(Icons.card_giftcard, size: 20),
                           SizedBox(width: 10),
                           Text(
-                            "한 조각 선물하기",
+                            "🎁 후원하기",
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -479,16 +577,18 @@ class _CompletionBanner extends StatelessWidget {
                   byGoal ? '목표 금액을 달성했어요!' : '펀딩 기간이 종료됐어요.',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: byGoal ? Colors.green.shade800 : Colors.orange.shade800,
+                    color: byGoal
+                        ? Colors.green.shade800
+                        : Colors.orange.shade800,
                   ),
                 ),
                 Text(
-                  byGoal
-                      ? '많은 친구들의 응원 덕분이에요 💛'
-                      : '더 이상 후원을 받을 수 없어요.',
+                  byGoal ? '많은 친구들의 응원 덕분이에요 💛' : '더 이상 후원을 받을 수 없어요.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: byGoal ? Colors.green.shade600 : Colors.orange.shade600,
+                    color: byGoal
+                        ? Colors.green.shade600
+                        : Colors.orange.shade600,
                   ),
                 ),
               ],

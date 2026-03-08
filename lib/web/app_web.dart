@@ -7,12 +7,13 @@ import '../features/friend/presentation/friend_invite_page.dart';
 import '../profile/presentation/pages/edit_profile_page.dart';
 import '../features/friend/presentation/friend_page.dart';
 import 'pages/my_info_page_web.dart';
-import '../features/auth/presentation/pages/signup_page.dart';
+import 'pages/signup_page_web.dart';
 import '../features/wish/data/project_model.dart';
 import '../features/wish/presentation/pages/create_wish_page.dart';
 import 'pages/donation_page_web.dart';
 import 'pages/donation_success_page_web.dart';
 import 'pages/home_page_web.dart';
+import 'pages/guest_home_page_web.dart';
 import 'pages/login_page_web.dart';
 import 'pages/project_detail_page_web.dart';
 import 'pages/settings_page_web.dart';
@@ -30,21 +31,24 @@ class AppWeb extends StatelessWidget {
     initialLocation: '/',
     redirect: (context, state) {
       final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
-      final isLoginRoute = state.matchedLocation == '/login';
-      final isSignupRoute = state.matchedLocation == '/signup';
-      final isInviteRoute = state.matchedLocation.startsWith('/friend-invite');
-      final isProjectRoute = state.matchedLocation.startsWith('/project/');
-      final isEditProfileRoute = state.matchedLocation == '/edit-profile';
-      final isSettingsRoute = state.matchedLocation == '/notification-settings';
+      final location = state.matchedLocation;
+      final isLoginRoute = location == '/login';
+      final isSignupRoute = location == '/signup';
+      final isInviteRoute = location.startsWith('/friend-invite');
+      final isProjectRoute = location.startsWith('/project/');
+      final isEditProfileRoute = location == '/edit-profile';
+      final isSettingsRoute = location == '/notification-settings';
 
-      if (!isLoggedIn &&
-          !isLoginRoute &&
-          !isSignupRoute &&
-          !isInviteRoute &&
-          !isProjectRoute &&
-          !isEditProfileRoute &&
-          !isSettingsRoute) {
-        return '/login';
+      if (!isLoggedIn) {
+        if (location == '/') return null;
+        if (!isLoginRoute &&
+            !isSignupRoute &&
+            !isInviteRoute &&
+            !isProjectRoute &&
+            !isEditProfileRoute &&
+            !isSettingsRoute) {
+          return '/login';
+        }
       }
       if (isLoggedIn && isLoginRoute) {
         final redirect = state.uri.queryParameters['redirect'];
@@ -62,8 +66,18 @@ class AppWeb extends StatelessWidget {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) {
+          final isLoggedIn = Supabase.instance.client.auth.currentUser != null;
+          if (isLoggedIn) {
+            return ShellWeb(currentPath: '/', child: HomePageWeb());
+          }
+          return const GuestHomePageWeb();
+        },
+      ),
       GoRoute(path: '/login', builder: (_, __) => const LoginPageWeb()),
-      GoRoute(path: '/signup', builder: (_, __) => const SignUpPage()),
+      GoRoute(path: '/signup', builder: (_, __) => const SignUpPageWeb()),
       GoRoute(
         path: '/friend-invite',
         builder: (context, state) {
@@ -134,11 +148,6 @@ class AppWeb extends StatelessWidget {
         builder: (context, state, child) =>
             ShellWeb(currentPath: state.uri.path, child: child),
         routes: [
-          GoRoute(
-            path: '/',
-            pageBuilder: (_, state) =>
-                const NoTransitionPage(child: HomePageWeb()),
-          ),
           GoRoute(
             path: '/friend',
             pageBuilder: (_, state) =>

@@ -39,6 +39,7 @@ class _HomePageState extends State<HomePage>
   int _friendRequestCount = 0;
   late AnimationController _badgePulseController;
   late Animation<double> _badgeScale;
+  StreamSubscription<Uri>? _linkSubscription;
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    _linkSubscription?.cancel();
     _badgePulseController.dispose();
     super.dispose();
   }
@@ -129,7 +131,7 @@ class _HomePageState extends State<HomePage>
   }
 
   void _listenDeepLinks() {
-    _appLinks.uriLinkStream.listen((uri) async {
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) async {
       if (!mounted) return;
       if (uri.host == 'friend') {
         final token = uri.queryParameters['token'];
