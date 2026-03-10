@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
@@ -18,10 +19,7 @@ class HomePage extends StatefulWidget {
   /// null이면 모든 카드 애니메이션 없이 즉시 표시.
   final int? animateProjectId;
 
-  const HomePage({
-    super.key,
-    this.animateProjectId,
-  });
+  const HomePage({super.key, this.animateProjectId});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -49,13 +47,13 @@ class _HomePageState extends State<HomePage>
       vsync: this,
       duration: const Duration(milliseconds: 450),
     );
-    _badgeScale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(
-      parent: _badgePulseController,
-      curve: Curves.easeOut,
-    ));
+    _badgeScale =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.35), weight: 50),
+          TweenSequenceItem(tween: Tween(begin: 1.35, end: 1.0), weight: 50),
+        ]).animate(
+          CurvedAnimation(parent: _badgePulseController, curve: Curves.easeOut),
+        );
     _repository.checkAndCompleteProjects();
     _loadRequestCount();
     _loadUserNickname();
@@ -100,9 +98,7 @@ class _HomePageState extends State<HomePage>
         final token = initialUri.queryParameters['token'];
         if (token != null) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => FriendInvitePage(token: token),
-            ),
+            MaterialPageRoute(builder: (_) => FriendInvitePage(token: token)),
           );
         }
       } else if (initialUri.host == 'project') {
@@ -119,14 +115,12 @@ class _HomePageState extends State<HomePage>
     if (!mounted) return;
     if (project != null) {
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ProjectDetailPage(project: project),
-        ),
+        MaterialPageRoute(builder: (_) => ProjectDetailPage(project: project)),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('해당 위시를 찾을 수 없어요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('해당 위시를 찾을 수 없어요.')));
     }
   }
 
@@ -137,9 +131,7 @@ class _HomePageState extends State<HomePage>
         final token = uri.queryParameters['token'];
         if (token != null) {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => FriendInvitePage(token: token),
-            ),
+            MaterialPageRoute(builder: (_) => FriendInvitePage(token: token)),
           );
         }
       } else if (uri.host == 'project') {
@@ -164,7 +156,11 @@ class _HomePageState extends State<HomePage>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.wifi_off_rounded, size: 48, color: Colors.grey.shade400),
+                  Icon(
+                    Icons.wifi_off_rounded,
+                    size: 48,
+                    color: Colors.grey.shade400,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     '연결이 불안정합니다',
@@ -261,14 +257,37 @@ class _HomePageState extends State<HomePage>
               decoration: BoxDecoration(
                 color: AppTheme.primary.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.primary.withOpacity(0.3), width: 2),
+                border: Border.all(
+                  color: AppTheme.primary.withOpacity(0.3),
+                  width: 2,
+                ),
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Icon(Icons.card_giftcard_rounded, size: 64, color: AppTheme.primary),
-                  Positioned(top: 28, right: 32, child: Icon(Icons.favorite_rounded, size: 20, color: AppTheme.primary.withOpacity(0.9))),
-                  Positioned(bottom: 32, left: 28, child: Icon(Icons.auto_awesome, size: 18, color: AppTheme.primary.withOpacity(0.8))),
+                  const Icon(
+                    Icons.card_giftcard_rounded,
+                    size: 64,
+                    color: AppTheme.primary,
+                  ),
+                  Positioned(
+                    top: 28,
+                    right: 32,
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      size: 20,
+                      color: AppTheme.primary.withOpacity(0.9),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 32,
+                    left: 28,
+                    child: Icon(
+                      Icons.auto_awesome,
+                      size: 18,
+                      color: AppTheme.primary.withOpacity(0.8),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -311,7 +330,10 @@ class _HomePageState extends State<HomePage>
                 },
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 24,
+                    horizontal: 32,
+                  ),
                   child: Column(
                     children: [
                       Container(
@@ -328,7 +350,11 @@ class _HomePageState extends State<HomePage>
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.add, size: 36, color: Colors.white),
+                        child: const Icon(
+                          Icons.add,
+                          size: 36,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       const Text(
@@ -350,11 +376,19 @@ class _HomePageState extends State<HomePage>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lightbulb_outline, size: 16, color: Colors.grey.shade600),
+              Icon(
+                Icons.lightbulb_outline,
+                size: 16,
+                color: Colors.grey.shade600,
+              ),
               const SizedBox(width: 6),
               Text(
                 'TIP',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
               ),
               const SizedBox(width: 6),
               Text(
