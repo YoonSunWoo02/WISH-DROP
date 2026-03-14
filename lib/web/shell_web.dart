@@ -20,9 +20,10 @@ class _ShellWebState extends State<ShellWeb> {
   String? _avatarUrl;
 
   int get _selectedIndex {
-    if (widget.currentPath.startsWith('/friend')) return 1;
-    if (widget.currentPath.startsWith('/settings')) return 2;
-    if (widget.currentPath.startsWith('/my-info')) return 3;
+    if (widget.currentPath.startsWith('/friend')) return 2;
+    if (widget.currentPath.startsWith('/settings')) return 3;
+    if (widget.currentPath.startsWith('/my-info')) return 4;
+    if (widget.currentPath.startsWith('/explore')) return 1;
     if (widget.currentPath.startsWith('/project/')) return -1;
     return 0;
   }
@@ -51,10 +52,10 @@ class _ShellWebState extends State<ShellWeb> {
   @override
   Widget build(BuildContext context) {
     final showSidebar = MediaQuery.of(context).size.width >= 1024;
-    const sidebarWidth = 240.0;
+    const sidebarWidth = 256.0;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: const Color(0xFFF3F4F6),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -98,20 +99,27 @@ class _ShellWebState extends State<ShellWeb> {
               _bottomNavItem(
                 context,
                 index: 1,
+                icon: Icons.explore,
+                label: '탐색',
+                route: '/explore',
+              ),
+              _bottomNavItem(
+                context,
+                index: 2,
                 icon: Icons.group,
                 label: '친구',
                 route: '/friend',
               ),
               _bottomNavItem(
                 context,
-                index: 2,
+                index: 3,
                 icon: Icons.settings,
                 label: '설정',
                 route: '/settings',
               ),
               _bottomNavItem(
                 context,
-                index: 3,
+                index: 4,
                 icon: Icons.person,
                 label: '마이페이지',
                 route: '/my-info',
@@ -157,6 +165,7 @@ class _ShellWebState extends State<ShellWeb> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isMd = MediaQuery.of(context).size.width >= 768;
     return Container(
       height: 64,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -167,64 +176,67 @@ class _ShellWebState extends State<ShellWeb> {
       child: Row(
         children: [
           _buildLogo(context),
-          if (MediaQuery.of(context).size.width >= 768) ...[
+          if (isMd) ...[
             const SizedBox(width: 24),
             Expanded(
-              child: SizedBox(
-                height: 42,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, size: 20, color: Colors.grey.shade500),
-                      const SizedBox(width: 8),
-                      Text(
-                        '친구, 위시 검색...',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 512),
+                  child: Container(
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search,
+                          size: 20,
+                          color: Colors.grey.shade500,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          '친구, 위시 검색...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ],
           const SizedBox(width: 16),
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: IconButton(
-              onPressed: () {},
-              icon: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.grey.shade600,
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
+          IconButton(
+            onPressed: () {},
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.grey.shade600,
+                  size: 24,
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
           _buildProfile(context),
         ],
       ),
@@ -242,25 +254,33 @@ class _ShellWebState extends State<ShellWeb> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.card_giftcard,
                   color: Colors.white,
-                  size: 20,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Text(
                 '위시드롭',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textHeading,
+                  letterSpacing: -0.5,
                 ),
               ),
             ],
@@ -340,7 +360,7 @@ class _ShellWebState extends State<ShellWeb> {
 
   Widget _buildSidebar(BuildContext context) {
     return Container(
-      width: 240,
+      width: 256,
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
@@ -349,21 +369,23 @@ class _ShellWebState extends State<ShellWeb> {
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
               children: [
-                _navItem(context, 0, Icons.home, '홈'),
-                _navItem(context, 1, Icons.group, '친구'),
-                _navItem(context, 2, Icons.settings, '설정'),
-                _navItem(context, 3, Icons.person, '마이페이지'),
-                const SizedBox(height: 24),
+                _navItem(context, 0, Icons.home_rounded, '홈'),
+                _navItem(context, 2, Icons.group_rounded, '친구'),
+                _navItem(context, 1, Icons.explore_rounded, '탐색'),
+                _navItem(context, 4, Icons.person_rounded, '마이페이지'),
+                _navItem(context, 3, Icons.settings_rounded, '설정'),
+                const SizedBox(height: 32),
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     '내 위시리스트',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey,
+                      color: Color(0xFF94A3B8),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
@@ -380,11 +402,13 @@ class _ShellWebState extends State<ShellWeb> {
               height: 48,
               child: ElevatedButton.icon(
                 onPressed: () => context.push('/create'),
-                icon: const Icon(Icons.add, size: 20),
+                icon: const Icon(Icons.add_rounded, size: 22),
                 label: const Text('위시 만들기'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
+                  elevation: 0,
+                  shadowColor: AppTheme.primary.withValues(alpha: 0.25),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -407,8 +431,10 @@ class _ShellWebState extends State<ShellWeb> {
     final route = index == 0
         ? '/'
         : index == 1
-        ? '/friend'
+        ? '/explore'
         : index == 2
+        ? '/friend'
+        : index == 3
         ? '/settings'
         : '/my-info';
     return Padding(
@@ -420,7 +446,7 @@ class _ShellWebState extends State<ShellWeb> {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: isSelected
                   ? AppTheme.primary.withValues(alpha: 0.1)

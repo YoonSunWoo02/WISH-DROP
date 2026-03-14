@@ -9,12 +9,13 @@ import '../features/friend/presentation/friend_page.dart';
 import 'pages/my_info_page_web.dart';
 import 'pages/signup_page_web.dart';
 import '../features/wish/data/project_model.dart';
-import '../features/wish/presentation/pages/create_wish_page.dart';
+import 'pages/create_wish_page_web.dart';
 import 'pages/donation_page_web.dart';
 import 'pages/donation_success_page_web.dart';
 import 'pages/home_page_web.dart';
 import 'pages/guest_home_page_web.dart';
 import 'pages/login_page_web.dart';
+import 'pages/explore_page_web.dart';
 import 'pages/project_detail_page_web.dart';
 import 'pages/settings_page_web.dart';
 import 'shell_web.dart';
@@ -38,15 +39,18 @@ class AppWeb extends StatelessWidget {
       final isProjectRoute = location.startsWith('/project/');
       final isEditProfileRoute = location == '/edit-profile';
       final isSettingsRoute = location == '/notification-settings';
+      final isExploreRoute = location == '/explore';
 
       if (!isLoggedIn) {
         if (location == '/') return null;
+        if (location == '/explore') return null;
         if (!isLoginRoute &&
             !isSignupRoute &&
             !isInviteRoute &&
             !isProjectRoute &&
             !isEditProfileRoute &&
-            !isSettingsRoute) {
+            !isSettingsRoute &&
+            !isExploreRoute) {
           return '/login';
         }
       }
@@ -75,6 +79,11 @@ class AppWeb extends StatelessWidget {
           }
           return const GuestHomePageWeb();
         },
+      ),
+      GoRoute(
+        path: '/explore',
+        builder: (context, state) =>
+            ShellWeb(currentPath: '/explore', child: const ExplorePageWeb()),
       ),
       GoRoute(path: '/login', builder: (_, __) => const LoginPageWeb()),
       GoRoute(path: '/signup', builder: (_, __) => const SignUpPageWeb()),
@@ -117,7 +126,7 @@ class AppWeb extends StatelessWidget {
           return DonationSuccessPageWeb(projectId: projectId);
         },
       ),
-      GoRoute(path: '/create', builder: (_, __) => const CreateWishPage()),
+      GoRoute(path: '/create', builder: (_, __) => const CreateWishPageWeb()),
       GoRoute(
         path: '/edit-profile',
         builder: (context, state) {

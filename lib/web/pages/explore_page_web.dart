@@ -1,56 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/theme.dart';
 import '../../../features/wish/data/project_model.dart';
 import '../../../features/wish/data/project_repository.dart';
 
-/// 웹 홈 — 환영 배너 + 위시 피드
-class HomePageWeb extends StatefulWidget {
-  const HomePageWeb({super.key});
+/// 탐색 페이지 — 전체 위시 피드 (친구 외 공개 위시 탐색)
+class ExplorePageWeb extends StatefulWidget {
+  const ExplorePageWeb({super.key});
 
   @override
-  State<HomePageWeb> createState() => _HomePageWebState();
+  State<ExplorePageWeb> createState() => _ExplorePageWebState();
 }
 
-class _HomePageWebState extends State<HomePageWeb> {
+class _ExplorePageWebState extends State<ExplorePageWeb> {
   final _repository = ProjectRepository();
-  int _homeStreamKey = 0;
-  String? _userNickname;
-  bool _useFallbackFetch = false;
+  bool _useFallback = false;
   Future<List<ProjectModel>>? _fallbackFuture;
 
   @override
   void initState() {
     super.initState();
     _repository.checkAndCompleteProjects();
-    _loadUserNickname();
   }
 
   Future<void> _retry() async {
     setState(() {
-      _useFallbackFetch = true;
-      _fallbackFuture = _repository.getProjects();
+      _useFallback = true;
+      _fallbackFuture = _repository.fetchActiveProjects();
     });
-  }
-
-  Future<void> _loadUserNickname() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
-    final data = await Supabase.instance.client
-        .from('profiles')
-        .select('nickname')
-        .eq('id', userId)
-        .maybeSingle();
-    if (!mounted) return;
-    setState(() => _userNickname = data?['nickname'] as String?);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_useFallbackFetch && _fallbackFuture != null) {
+    if (_useFallback && _fallbackFuture != null) {
       return FutureBuilder<List<ProjectModel>>(
         future: _fallbackFuture,
         builder: (context, snapshot) {
@@ -60,19 +44,14 @@ class _HomePageWebState extends State<HomePageWeb> {
           if (snapshot.hasError) {
             return _buildError(context);
           }
-          final projects =
-              snapshot.data?.where((p) => p.status == 'active').toList() ?? [];
-          if (projects.isEmpty) {
-            return _buildEmpty(context);
-          }
+          final projects = snapshot.data ?? [];
           return _buildContent(context, projects);
         },
       );
     }
 
-    return StreamBuilder<List<ProjectModel>>(
-      key: ValueKey(_homeStreamKey),
-      stream: _repository.getProjectsStream(),
+    return FutureBuilder<List<ProjectModel>>(
+      future: _repository.fetchActiveProjects(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -80,20 +59,13 @@ class _HomePageWebState extends State<HomePageWeb> {
         if (snapshot.hasError) {
           return _buildError(context);
         }
-        final projects =
-            snapshot.data?.where((p) => p.status == 'active').toList() ?? [];
-        if (projects.isEmpty) {
-          return _buildEmpty(context);
-        }
+        final projects = snapshot.data ?? [];
         return _buildContent(context, projects);
       },
     );
   }
 
   Widget _buildContent(BuildContext context, List<ProjectModel> projects) {
-    final name = _userNickname?.trim().isNotEmpty == true
-        ? _userNickname!
-        : '회원';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
@@ -102,177 +74,31 @@ class _HomePageWebState extends State<HomePageWeb> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildBanner(context, name),
-              const SizedBox(height: 32),
-              _buildFeedHeader(context),
-              const SizedBox(height: 20),
-              _buildGrid(context, projects),
+              Row(
+                children: [
+                  const Icon(Icons.explore, color: AppTheme.primary, size: 22),
+                  const SizedBox(width: 8),
+                  const Text(
+                    '탐색',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHeading,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '다양한 위시를 구경하고 마음을 전해보세요.',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+              projects.isEmpty
+                  ? _buildEmpty(context)
+                  : _buildGrid(context, projects),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBanner(BuildContext context, String name) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.primary, Color(0xFF4338CA)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.primary.withValues(alpha: 0.25),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$name님, 친구들의 소원을 응원해주세요! 👋',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '이번 달 생일인 친구가 있다면, 작게나마 마음을 표현해보는 건 어떨까요?',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.9),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        _bannerBtn('친구 찾기', true, () => context.go('/friend')),
-                        const SizedBox(width: 12),
-                        _bannerBtn(
-                          '내 위시 공유',
-                          false,
-                          () => context.push('/create'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 24),
-            ],
-          ),
-        ),
-        Positioned(
-          right: 20,
-          bottom: 0,
-          child: Opacity(
-            opacity: 0.2,
-            child: Icon(
-              Icons.card_giftcard_rounded,
-              size: 120,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _bannerBtn(String label, bool primary, VoidCallback onTap) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            color: primary ? Colors.white : Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: primary ? AppTheme.primary : Colors.white,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeedHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.dynamic_feed_rounded, color: AppTheme.primary, size: 24),
-            const SizedBox(width: 8),
-            const Text(
-              '친구들의 위시 피드',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textHeading,
-              ),
-            ),
-          ],
-        ),
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [_feedSortChip('인기순', true), _feedSortChip('최신순', false)],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _feedSortChip(String label, bool selected) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: selected ? const Color(0xFFF1F5F9) : null,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: selected
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-              ]
-            : null,
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-          color: selected ? AppTheme.textHeading : AppTheme.textBody,
         ),
       ),
     );
@@ -302,6 +128,34 @@ class _HomePageWebState extends State<HomePageWeb> {
     );
   }
 
+  Widget _buildEmpty(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(48),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.card_giftcard_outlined,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '아직 등록된 위시가 없어요.',
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () => context.push('/create'),
+              child: const Text('첫 위시 만들기'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildError(BuildContext context) {
     return Center(
       child: Column(
@@ -314,27 +168,9 @@ class _HomePageWebState extends State<HomePageWeb> {
       ),
     );
   }
-
-  Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('등록된 위시가 없습니다.'),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () async {
-              await context.push('/create');
-              if (mounted) setState(() => _homeStreamKey++);
-            },
-            child: const Text('위시 만들기'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
+/// 홈과 동일한 위시 카드 (달성률, D-Day)
 class _WishCard extends StatelessWidget {
   final ProjectModel project;
   final VoidCallback onTap;

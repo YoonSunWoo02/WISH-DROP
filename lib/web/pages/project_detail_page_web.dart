@@ -12,6 +12,7 @@ import '../../../features/donation/data/donation_repository.dart';
 import '../../../features/wish/data/project_model.dart';
 import '../../../features/wish/data/project_repository.dart';
 import '../../../features/wish/data/project_share_service.dart';
+import '../widgets/funding_modal.dart';
 
 /// 웹 위시 상세 — 독립 풀스크린 + 새 디자인 (Shell 없음)
 class ProjectDetailPageWeb extends StatefulWidget {
@@ -231,20 +232,65 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
     final daysLeft = project.daysLeft ?? 0;
     final isWide = MediaQuery.of(context).size.width > 800;
 
+    final creatorNickname = _creatorProfile?['nickname'] as String? ?? '사용자';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: _buildAppBar(),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (isWide) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 7,
+                          child: SingleChildScrollView(
+                            child: _buildMainContent(project, fmt),
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                        SizedBox(
+                          width: 280,
+                          child: _buildActionCard(
+                            project,
+                            fmt,
+                            daysLeft,
+                            isCompleted,
+                            creatorNickname,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1000),
-                  child: isWide
-                      ? _buildWideLayout(project, fmt, daysLeft, isCompleted)
-                      : _buildNarrowLayout(project, fmt, daysLeft, isCompleted),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildMainContent(project, fmt),
+                      const SizedBox(height: 20),
+                      _buildActionCard(
+                        project,
+                        fmt,
+                        daysLeft,
+                        isCompleted,
+                        creatorNickname,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -300,41 +346,6 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
             onPressed: _shareProject,
           ),
         const SizedBox(width: 8),
-      ],
-    );
-  }
-
-  Widget _buildWideLayout(
-    ProjectModel project,
-    NumberFormat fmt,
-    int daysLeft,
-    bool isCompleted,
-  ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 7, child: _buildMainContent(project, fmt)),
-        const SizedBox(width: 24),
-        SizedBox(
-          width: 280,
-          child: _buildActionCard(project, fmt, daysLeft, isCompleted),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNarrowLayout(
-    ProjectModel project,
-    NumberFormat fmt,
-    int daysLeft,
-    bool isCompleted,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildMainContent(project, fmt),
-        const SizedBox(height: 20),
-        _buildActionCard(project, fmt, daysLeft, isCompleted),
       ],
     );
   }
@@ -481,6 +492,7 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
     NumberFormat fmt,
     int daysLeft,
     bool isCompleted,
+    String creatorNickname,
   ) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -577,16 +589,21 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
             SizedBox(
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   final user = Supabase.instance.client.auth.currentUser;
                   if (user != null) {
-                    context.push('/donation', extra: project);
+                    final refreshed = await FundingModal.show(
+                      context,
+                      project: project,
+                      creatorNickname: creatorNickname,
+                    );
+                    if (refreshed == true && mounted) _loadProject();
                   } else {
                     _showLoginForDonationSheet(context, project);
                   }
                 },
                 icon: const Icon(Icons.card_giftcard, size: 18),
-                label: const Text('🎁 후원하기'),
+                label: const Text('한 조각 선물하기'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -678,7 +695,7 @@ class _ProjectDetailPageWebState extends State<ProjectDetailPageWeb>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '참여한 친구들',
+            '친구들의 응원 메시지',
             style: GoogleFonts.notoSansKr(
               fontSize: 16,
               fontWeight: FontWeight.bold,
